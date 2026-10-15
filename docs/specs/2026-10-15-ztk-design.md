@@ -42,7 +42,7 @@
 
 **Lookup order** (first found wins): `--config <path>` flag → `$ZTKRC` → `$XDG_CONFIG_HOME/ztk/ztkrc` (default `~/.config/ztk/ztkrc`) → `~/.ztkrc`.
 
-**Format:** `key=value` lines, `#` comments, blank lines ignored, `include <path>` supported (same semantics as `.taskrc`).
+**Format:** Java properties: `key=value` lines, `#` comments, blank lines ignored. A leading `~` in a value is expanded to the home directory. There is no `include`: the file holds only ztk's own keys, and Taskwarrior itself is configured through its own `.taskrc` (optionally selected with `task.rc`).
 
 | Key | Default | Meaning |
 |---|---|---|

@@ -14,6 +14,7 @@ import java.util.Optional;
  * @param tags        The task tags, without the leading {@code +}.
  * @param active      Whether the task is started, i.e., currently being worked on.
  * @param note        The path of the task's note, relative to the knowledge base, if one was created.
+ * @param issue       The external issue the task tracks, e.g. {@code GH-1}, from the user's {@code issue} attribute.
  */
 public record Task(
       int id,
@@ -23,5 +24,6 @@ public record Task(
       Optional<String> project,
       List<String> tags,
       boolean active,
-      Optional<String> note
+      Optional<String> note,
+      Optional<String> issue
 ) { }

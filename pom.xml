@@ -36,9 +36,16 @@
       <scope>provided</scope>
     </dependency>
 
+    <!-- JSON: parse the output from taskwarrior -->
     <dependency>
       <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
+      <version>${version.jackson}</version>
+    </dependency>
+    <!-- YAML frontmatter: writes notes and parse in vault -->
+    <dependency>
+      <groupId>tools.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
       <version>${version.jackson}</version>
     </dependency>
 

@@ -40,10 +40,13 @@ public final class TestTaskwarrior {
       this.taskStderr = root.resolve("task.stderr");
 
       // confirmation=off: no interactive prompts. verbose=nothing: stdout carries only the command's output.
+      // uda.issue mirrors the user's own .taskrc; ztk's UDAs (note) are deliberately absent.
       this.taskRc = Files.writeString(root.resolve("taskrc"), """
             data.location=%s
             confirmation=off
             verbose=nothing
+            uda.issue.type=string
+            uda.issue.label=Issue
             """.formatted(taskData));
       this.ztkrc = Files.writeString(root.resolve("ztkrc"), """
             data.location=%s

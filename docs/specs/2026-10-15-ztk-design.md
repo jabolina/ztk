@@ -196,7 +196,7 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 ### 6.1 Output contract
 
 - TTY stdout → human output (tables, trees, color). `--json` or non-TTY stdout → JSON. `--human` forces human output when piped.
-- **Exception: path-result commands** (`touch`, `begin`, `new`, `paper new`, `goal new`, `effort new`, `summary --write`, `report-file`) print only the bare path on stdout in both TTY and non-TTY mode, so `FILE=$(ztk touch 42)` keeps working. With `--json` they print `{"schema":1,"id":…,"path":…}`. Their human messages (e.g. "🚀 Work started") go to stderr.
+- **Exception: path-result commands** (`add`, `begin`, `new`, `paper new`, `goal new`, `effort new`, `summary --write`, `report-file`) print only the bare path on stdout in both TTY and non-TTY mode, so `FILE=$(ztk add "Fix bug" project:X)` works. With `--json` they print `{"schema":1,"id":…,"path":…}`. Their human messages (e.g. "🚀 Work started") go to stderr.
 - JSON always includes node IDs and absolute file paths. JSON shapes are versioned (`"schema": 1`) and covered by golden-file tests.
 - Exit codes: `0` ok, `1` usage/config error, `2` not found, `3` validation failure (e.g. unknown effort, missing project), `4` Taskwarrior error (its stderr is included).
 - Any argument starting with `-` that is not a recognized option prints the command's usage and exits 1 without side effects. This includes arguments passed through to Taskwarrior; tag removal (`-tag`) is not supported via `ztk add`. `--help`/`-h` print usage and exit 0. The guard applies to positional arguments only: values of recognized options are exempt, and a lone `-` is allowed as the stdin marker (e.g. `--summary -`).
@@ -208,8 +208,8 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 
 | Command | Behavior |
 |---|---|
-| `add <desc> project:X [taskwarrior attrs] [--effort <slug>]` | Fails with code 3 without `project:`, or if the effort does not exist. Sets UDA `effort`. |
-| `start <id>` / `begin <id>` | Single-active-task rule; adds `+week`, removes `+review`; `start` opens the note, `begin` prints its path. Creates the note and sets UDA `note` if missing. |
+| `add <desc> project:X [taskwarrior attrs] [--effort <slug>]` | Creates the task **and its note** (`<project>/<YYYYMMDD>-<slug>.md`, linked through UDA `note`) and prints the note path. Requires a literal `project:<name>` and fails with code 3 without it, or if the effort does not exist, before anything is written. Sets UDA `effort`. Replaces the old `add` + `touch` sequence. |
+| `start <id>` / `begin <id>` | Single-active-task rule; adds `+week`, removes `+review`; `start` opens the note, `begin` prints its path. Creates the note and sets UDA `note` if missing (tasks added before ztk2 or with plain `task`). |
 | `stop` | Stops all active tasks, then shows `week`. |
 | `review <id>` | Stop, add `+review`. |
 | `done <id>` | Removes `+week`, completes the task. |
@@ -221,7 +221,6 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 | Command | Behavior |
 |---|---|
 | `note <id>` / `open <id>` | Open the task note in the editor. |
-| `touch <id>` | Ensure the task note exists; print its path. |
 | `cat <node>` | Print any note (task, effort, goal, zettel, paper). |
 | `new <title>` | Create a zettel in `folder.zettel`; print path (opens editor only on TTY). |
 | `paper new <pdf-path> --title … [--venue …] [--tags …]` | Create a reading note next to the PDF from `papers/TEMPLATE.md`. |
@@ -348,7 +347,7 @@ Repository `skills/` folder, installed with `ztk install-skills`:
 
 | Skill | Purpose |
 |---|---|
-| `ztk` | Everyday agent usage: `recent` at session start, `context`, `touch`/`cat`, `session add` at session end, `graph`/`search` for lookups, never run editor commands. Replaces `~/.claude/skills/ztk`. |
+| `ztk` | Everyday agent usage: `recent` at session start, `context`, `add` (prints the new task's note path)/`cat`, `session add` at session end, `graph`/`search` for lookups, never run editor commands. Replaces `~/.claude/skills/ztk`. |
 | `ztk-planning` | Collaborative goal → effort → task flow: read `goal tree` + last quarter's `summary`; brainstorm one goal at a time with the user; create it with `goal new`, then write Why / What done looks like together; propose efforts one at a time, creating each only after agreement and writing its note; break an effort into tasks (`add … --effort`) only after its note is agreed. The agent never creates goals or efforts without the user's explicit agreement. |
 | `ztk-summary` | Expand `summary <period> --json` into a narrative for weekly/quarterly/yearly reviews, using only gathered facts, then save with `summary --write` or edit the written file. Replaces `weekly-summary`. |
 

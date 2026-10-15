@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -166,6 +167,17 @@ public final class TaskStore {
    }
 
    /**
+    * Links a task to its note.
+    *
+    * @param task the task to link.
+    * @param note the note path, relative to the knowledge base.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior rejects the change.
+    */
+   public void setNote(Task task, Path note) {
+      modify(task, List.of(NOTE_UDA + ":" + note));
+   }
+
+   /**
     * Runs a Taskwarrior command on a single task.
     *
     * @param task the task to change.
@@ -283,7 +295,9 @@ public final class TaskStore {
             List.copyOf(tags),
             // Taskwarrior only exports "start" while the task is started, stopping it removes the field.
             node.has("start"),
-            node.optional(NOTE_UDA).map(JsonNode::asString));
+            node.optional(NOTE_UDA).map(JsonNode::asString),
+            // The user's own attribute: read when present, never defined by ztk.
+            node.optional("issue").map(JsonNode::asString));
    }
 
    /**

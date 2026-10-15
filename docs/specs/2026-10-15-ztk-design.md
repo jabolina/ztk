@@ -108,12 +108,12 @@ An effort's `quarter` must equal its goal's quarter; `effort new`/`effort set` e
 
 ### 4.3 Taskwarrior UDAs
 
-`ztk` ensures these exist (via `task config`, once, during `migrate` or the first write command, with a printed notice):
+`ztk` defines these on every `task` invocation as `rc.` overrides on the command line; it never writes them to the user's `.taskrc`:
 
 - `uda.effort.type=string`, `uda.effort.label=Effort`
 - `uda.note.type=string`, `uda.note.label=Note` — path relative to `data.location`
 
-Existing UDAs (`issue`, `priority`, `reviewed`) are untouched.
+Without the definition, Taskwarrior treats `note:x` as description text (`modify note:x` replaces the description). Values written by `ztk` are kept by Taskwarrior and exported even when the user's own `task` runs without the definition; users who want them in their own reports can add the two lines to their `.taskrc`. Existing UDAs (`issue`, `priority`, `reviewed`) are untouched.
 
 ### 4.4 Note types
 
@@ -335,11 +335,10 @@ The native binary keeps per-Tab latency low; the target is under 50 ms per `__co
 
 Runs idempotently; `--dry-run` prints every change without making it.
 
-1. Ensure UDAs `effort` and `note` exist.
-2. For each task without a `note` UDA: find a note with matching `task_uuid` and set `note`.
-3. Move root-level zettels (`.md` with a `uuid` frontmatter and no `task_uuid`, excluding known files such as `progress*.md`, `AGENTS.md`, `CLAUDE.md`, `Weekly-Status-*.md`, `000-Project-Index.md`) into `folder.zettel`.
-4. Report task projects that differ only by case (e.g. `infinispan` vs `Infinispan`) for manual fixing; never change them automatically.
-5. Leave `progress*.md`, `Weekly-Status-*.md` and `000-Project-Index.md` in place as archives.
+1. For each task without a `note` UDA: find a note with matching `task_uuid` and set `note`.
+2. Move root-level zettels (`.md` with a `uuid` frontmatter and no `task_uuid`, excluding known files such as `progress*.md`, `AGENTS.md`, `CLAUDE.md`, `Weekly-Status-*.md`, `000-Project-Index.md`) into `folder.zettel`.
+3. Report task projects that differ only by case (e.g. `infinispan` vs `Infinispan`) for manual fixing; never change them automatically.
+4. Leave `progress*.md`, `Weekly-Status-*.md` and `000-Project-Index.md` in place as archives.
 
 Wikilinks resolve by name, so moving files does not change link text. Before running step 3 for real, verify that Telekasten in nvim follows a bare-name link to a file in a subfolder (task notes in project subfolders are already linked this way from `000-Project-Index.md`), and point Telekasten's new-note location at `zettel/`.
 

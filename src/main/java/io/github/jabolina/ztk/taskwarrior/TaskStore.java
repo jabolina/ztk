@@ -1,0 +1,303 @@
+package io.github.jabolina.ztk.taskwarrior;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import io.github.jabolina.ztk.ZtkException;
+import io.github.jabolina.ztk.configuration.Configuration;
+import io.github.jabolina.ztk.util.Concurrency;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * Reads and writes Taskwarrior tasks.
+ *
+ * <p>
+ * This is the only class that runs the Taskwarrior executable. It honors the configured {@code task.command},
+ * {@code task.rc} and {@code task.data}, and reads tasks through {@code task export}.
+ * </p>
+ *
+ * @since 1.0
+ * @author José Bolina
+ */
+public final class TaskStore {
+
+   // Jackson to parse Taskwarrior's output as JSON.
+   private static final JsonMapper JSON = JsonMapper.shared();
+
+   // Leading major version of "task --version", e.g. "3" in "3.5.0".
+   private static final Pattern MAJOR_VERSION = Pattern.compile("^(\\d+)\\.");
+
+   // A working-set ID (positive integer) or a full UUID, as printed by Taskwarrior.
+   private static final Pattern REFERENCE = Pattern.compile("[1-9]\\d*|[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}");
+
+   // With verbose=new-uuid, "task add" reports the created task as "Created task <uuid>."
+   private static final Pattern CREATED = Pattern.compile("Created task ([0-9a-f-]{36})");
+
+   static final String NOTE_UDA = "note";
+
+   private final Configuration configuration;
+
+   /**
+    * Creates a store that runs Taskwarrior as configured.
+    *
+    * @param configuration the effective configuration, providing the executable and the optional rc and data paths.
+    */
+   public TaskStore(Configuration configuration) {
+      this.configuration = configuration;
+      requireSupportedVersion();
+   }
+
+   /**
+    * Lists the tasks matching a Taskwarrior filter.
+    *
+    * @param filter the filter terms, e.g. {@code "project:Alpha", "+week"}. Empty matches every task.
+    * @return the matching tasks, in Taskwarrior's export order.
+    */
+   public List<Task> query(String... filter) {
+      List<String> args = new ArrayList<>();
+      // Without json.array, export prints one object per line instead of a JSON array.
+      args.add("rc.json.array=on");
+      args.addAll(List.of(filter));
+      args.add("export");
+
+      List<Task> tasks = new ArrayList<>();
+      for (JsonNode node : JSON.readTree(run(args))) {
+         tasks.add(toTask(node));
+      }
+      return tasks;
+   }
+
+   /**
+    * Resolves a single task by its working-set ID or its UUID.
+    *
+    * @param reference the numeric ID shown by Taskwarrior, or the task UUID.
+    * @return the referenced task.
+    * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no task has that ID or UUID.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when {@code reference} is neither an ID nor a UUID.
+    */
+   public Task get(String reference) {
+      // Anything else would be passed to Taskwarrior as a filter and could match an arbitrary task.
+      if (!REFERENCE.matcher(reference).matches()) {
+         throw ZtkException.usage("Not a task ID or UUID: " + reference);
+      }
+
+      // A bare ID or UUID is a valid Taskwarrior filter matching at most one task.
+      List<Task> tasks = query(reference);
+      if (tasks.isEmpty()) {
+         throw ZtkException.notFound("Task " + reference + " not found.");
+      }
+      return tasks.getFirst();
+   }
+
+   /**
+    * Creates a task.
+    *
+    * @param words the description words and Taskwarrior attributes, e.g. {@code "fix", "bug", "project:Alpha"}.
+    * @return the created task, as stored by Taskwarrior.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior rejects the task or does not
+    *                      report the created task.
+    */
+   public Task add(List<String> words) {
+      List<String> args = new ArrayList<>();
+      // Overrides the rc.verbose=nothing set by run(): this is the only way to learn the new task's UUID.
+      args.add("rc.verbose=new-uuid");
+      args.add("add");
+      args.addAll(words);
+
+      String stdout = run(args);
+      Matcher created = CREATED.matcher(stdout);
+      if (!created.find()) {
+         throw ZtkException.taskwarrior("Taskwarrior did not report the created task: " + stdout);
+      }
+      return get(created.group(1));
+   }
+
+   /**
+    * Starts a task, applying modifications in the same Taskwarrior command.
+    *
+    * @param task the task to start.
+    * @param modifications Taskwarrior modifications to apply while starting, e.g. {@code "+week", "-review"}.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior rejects the change, e.g. the
+    *                      task is already started.
+    */
+   public void start(Task task, List<String> modifications) {
+      change(task, "start", modifications);
+   }
+
+   /**
+    * Stops a started task.
+    *
+    * @param task the task to stop.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior rejects the change, e.g. the
+    *                      task is not started.
+    */
+   public void stop(Task task) {
+      change(task, "stop", List.of());
+   }
+
+   /**
+    * Changes attributes of a task.
+    *
+    * @param task the task to change.
+    * @param modifications Taskwarrior modifications, e.g. {@code "project:Beta", "+review"}.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior rejects the change.
+    */
+   public void modify(Task task, List<String> modifications) {
+      change(task, "modify", modifications);
+   }
+
+   /**
+    * Marks a task as completed.
+    *
+    * @param task the task to complete.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior rejects the change.
+    */
+   public void done(Task task) {
+      change(task, "done", List.of());
+   }
+
+   /**
+    * Runs a Taskwarrior command on a single task.
+    *
+    * @param task the task to change.
+    * @param command the Taskwarrior command, e.g. {@code start} or {@code modify}.
+    * @param modifications Taskwarrior modifications passed after the command.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior rejects the change.
+    */
+   private void change(Task task, String command, List<String> modifications) {
+      List<String> args = new ArrayList<>();
+      // The UUID selects exactly this task, even if working-set IDs shifted since it was read.
+      args.add(task.uuid());
+      args.add(command);
+      args.addAll(modifications);
+      run(args);
+   }
+
+   /**
+    * Runs Taskwarrior with the configured environment.
+    *
+    * @param args the Taskwarrior arguments, after the executable.
+    * @return the standard output.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when the executable cannot be started.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when the executable cannot be started or exits
+    *                      with a non-zero code. The message includes Taskwarrior's stderr.
+    */
+   private String run(Collection<String> args) {
+      List<String> command = prepareTaskwarriorCommand();
+      command.addAll(args);
+
+      return execute(command, args);
+   }
+
+   /**
+    * Starts a Taskwarrior process with the configured environment and collects its output.
+    *
+    * @param command the full command line, starting with the executable.
+    * @param args the arguments to show in error messages, without ztk's internal overrides.
+    * @return the standard output.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when the executable cannot be started or exits
+    *                      with a non-zero code. The message includes Taskwarrior's stderr.
+    */
+   private String execute(List<String> command, Collection<String> args) {
+      ProcessBuilder builder = new ProcessBuilder(command);
+      configuration.taskRc().ifPresent(rc -> builder.environment().put("TASKRC", rc.toString()));
+      configuration.taskData().ifPresent(data -> builder.environment().put("TASKDATA", data.toString()));
+
+      try {
+         Process process = builder.start();
+         CompletableFuture<String> stderr = CompletableFuture.supplyAsync(() -> readAll(process.getErrorStream()), Concurrency.executor());
+         String stdout = readAll(process.getInputStream());
+         int exitCode = process.waitFor();
+         // In case the process has failed, we'll join to collect the stderr from taskwarrior.
+         // Since the process has already returned with an exit code, the future should be completed, too.
+         if (exitCode != 0)
+            throw ZtkException.taskwarrior("Taskwarrior failed (exit " + exitCode + "): " + String.join(" ", args)
+                  + System.lineSeparator() + stderr.join().strip());
+
+         // Operation succeeded
+         return stdout;
+      } catch (IOException e) {
+         throw ZtkException.taskwarrior("Cannot run " + configuration.taskCommand() + ": " + e.getMessage());
+      } catch (InterruptedException e) {
+         Thread.currentThread().interrupt();
+         throw ZtkException.taskwarrior("Interrupted while running " + configuration.taskCommand());
+      }
+   }
+
+   private List<String> prepareTaskwarriorCommand() {
+      List<String> command = new ArrayList<>();
+      command.add(configuration.taskCommand());
+      // The user's .taskrc may be verbose or ask for confirmation.
+      // ztk needs bare, non-interactive output.
+      command.add("rc.verbose=nothing");
+      command.add("rc.confirmation=off");
+
+      // Define ztk's UDAs for this invocation only, without touching the user's .taskrc. Without the definition,
+      // Taskwarrior reads "note:<path>" as description text, and "modify note:<path>" replaces the description.
+      command.add("rc.uda." + NOTE_UDA + ".type=string");
+      command.add("rc.uda." + NOTE_UDA + ".label=Note");
+      return command;
+   }
+
+   /**
+    * Ensures the configured Taskwarrior is version 3.0 or newer, checking only on the first call.
+    *
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when the version is older or cannot be read.
+    */
+   private void requireSupportedVersion() {
+      // --version is only recognized as the first argument, so ztk's rc. overrides must not precede it.
+      String version = execute(List.of(configuration.taskCommand(), "--version"), List.of("--version")).strip();
+      Matcher major = MAJOR_VERSION.matcher(version);
+      // An unrecognizable answer is treated as unsupported rather than guessed at.
+      if (!major.find() || Integer.parseInt(major.group(1)) < 3) {
+         throw ZtkException.taskwarrior("ztk requires Taskwarrior 3.0 or newer, found: " + version);
+      }
+   }
+
+   /**
+    * Converts one object of {@code task export} into a task.
+    *
+    * @param node the exported JSON object.
+    * @return the task it describes.
+    */
+   private static Task toTask(JsonNode node) {
+      List<String> tags = new ArrayList<>();
+      for (JsonNode tag : node.path("tags")) {
+         tags.add(tag.asString());
+      }
+      return new Task(
+            node.path("id").asInt(0),
+            node.path("uuid").asString(),
+            node.path("description").asString(),
+            node.path("status").asString(),
+            node.optional("project").map(JsonNode::asString),
+            List.copyOf(tags),
+            // Taskwarrior only exports "start" while the task is started, stopping it removes the field.
+            node.has("start"),
+            node.optional(NOTE_UDA).map(JsonNode::asString));
+   }
+
+   /**
+    * Reads a process stream to the end.
+    *
+    * @param stream the process output or error stream.
+    * @return the stream content, decoded as UTF-8.
+    * @throws UncheckedIOException when the stream cannot be read.
+    */
+   private static String readAll(InputStream stream) {
+      try {
+         return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+      } catch (IOException e) {
+         throw new UncheckedIOException(e);
+      }
+   }
+}

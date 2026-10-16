@@ -195,7 +195,7 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 
 ### 6.1 Output contract
 
-- TTY stdout → human output (tables, trees, color). `--json` or non-TTY stdout → JSON. `--human` forces human output when piped.
+- Interactive session (stdin and stdout are terminals) → human output (tables, trees, color). `--json`, or stdin or stdout piped or redirected → JSON. `--human` forces human output otherwise. Colors appear only in an interactive session without `NO_COLOR` set.
 - **Path-result commands** (`add`, `begin`, `new`, `paper new`, `goal new`, `effort new`, `summary --write`, `report-file`) follow the same rule: on a terminal (or with `--human`) they print only the bare path on stdout; as JSON they print `{"schema":1,"id":…,"path":…}` (plus command-specific fields, e.g. `uuid` for tasks). Scripts that want the bare path pass `--human`, e.g. `FILE=$(ztk add "Fix bug" project:X --human)`, or read `.path` from the JSON. Their human messages (e.g. "Created task 3.") always go to stderr.
 - JSON always includes node IDs and absolute file paths. JSON shapes are versioned (`"schema": 1`) and covered by golden-file tests.
 - Exit codes: `0` ok, `1` usage/config error, `2` not found, `3` validation failure (e.g. unknown effort, missing project), `4` Taskwarrior error (its stderr is included).

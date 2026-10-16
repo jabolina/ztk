@@ -91,6 +91,14 @@ public final class Context {
    }
 
    /**
+    * @return whether help and usage messages may use ANSI colors.
+    */
+   public boolean colors() {
+      // Colors only help people at a terminal. NO_COLOR turns them off when present, whatever its value, even empty.
+      return tty && !env.containsKey("NO_COLOR");
+   }
+
+   /**
     * How results are printed.
     */
    public enum OutputMode {

@@ -4,9 +4,15 @@ import java.nio.file.Path;
 import java.util.Properties;
 
 import org.aesh.AeshRuntimeRunner;
+import org.aesh.command.Command;
 import org.aesh.command.CommandResult;
+import org.aesh.command.container.CommandContainer;
+import org.aesh.command.impl.container.AeshCommandContainerBuilder;
+import org.aesh.command.impl.internal.ProcessedCommand;
+import org.aesh.command.impl.parser.CommandLineParser;
 import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.invocation.CommandInvocationProvider;
+import org.aesh.command.parser.CommandLineParserException;
 import org.aesh.command.validator.OptionValidatorException;
 
 import io.github.jabolina.ztk.Context.OutputMode;
@@ -48,6 +54,10 @@ public final class Ztk {
       };
       try {
          CommandResult result = AeshRuntimeRunner.builder()
+               // Lazy startup renders help with its own parsers, which only honor the real NO_COLOR variable.
+               // Creating the commands upfront makes every help and usage message go through the parsers built below.
+               .lazyStartup(false)
+               .containerBuilder(new ContainerBuilder(context.colors()))
                .commandInvocationProvider(invocations)
                .command(ZtkCommand.class)
                .args(args)
@@ -124,6 +134,86 @@ public final class Ztk {
             }
          }
          return new GlobalOptions(mode, configuration);
+      }
+   }
+
+   /**
+    * Creates the Æsh command containers, choosing whether help and usage messages use colors.
+    *
+    * <p>
+    * The choice applies to the command and all its subcommands.
+    * </p>
+    */
+   private static final class ContainerBuilder extends AeshCommandContainerBuilder<ZtkInvocation> {
+      private final boolean colors;
+
+      /**
+       * @param colors whether help and usage messages may contain ANSI colors.
+       */
+      private ContainerBuilder(boolean colors) {
+         this.colors = colors;
+      }
+
+      /**
+       * Creates the container of a command class.
+       *
+       * @param command the command class.
+       * @return the container, with colors enabled or disabled.
+       * @throws CommandLineParserException when the command definition is invalid.
+       */
+      @Override
+      public CommandContainer<ZtkInvocation> create(Class<? extends Command> command) throws CommandLineParserException {
+         return withColors(super.create(command));
+      }
+
+      /**
+       * Creates the container of a command instance.
+       *
+       * @param command the command instance.
+       * @return the container, with colors enabled or disabled.
+       * @throws CommandLineParserException when the command definition is invalid.
+       */
+      @Override
+      public CommandContainer<ZtkInvocation> create(Command command) throws CommandLineParserException {
+         return withColors(super.create(command));
+      }
+
+      /**
+       * Applies the color choice to a container.
+       *
+       * @param container the container just created.
+       * @return the same container.
+       */
+      private CommandContainer<ZtkInvocation> withColors(CommandContainer<ZtkInvocation> container) {
+         // Propagates to every option and subcommand parser of the container.
+         container.getParser().updateAnsiMode(colors);
+         argumentColors(container.getParser());
+         return container;
+      }
+
+      /**
+       * Applies the color choice to the positional arguments of a command and all its subcommands.
+       *
+       * <p>
+       * Æsh skips positional arguments when changing the color mode of a parser, so their help line would keep its
+       * colors.
+       * </p>
+       *
+       * @param parser the parser of the command.
+       */
+      private void argumentColors(CommandLineParser<ZtkInvocation> parser) {
+         ProcessedCommand<Command<ZtkInvocation>, ZtkInvocation> command = parser.getProcessedCommand();
+         if (command.getArgument() != null)
+            command.getArgument().updateAnsiMode(colors);
+
+         if (command.getArguments() != null)
+            command.getArguments().updateAnsiMode(colors);
+
+         if (parser.getChildParsers() != null) {
+            for (CommandLineParser<ZtkInvocation> child : parser.getChildParsers()) {
+               argumentColors(child);
+            }
+         }
       }
    }
 }

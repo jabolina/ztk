@@ -1,6 +1,7 @@
 package io.github.jabolina.ztk.cli;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Path;
 import java.util.Properties;
@@ -21,6 +22,9 @@ import tools.jackson.databind.json.JsonMapper;
 class CliTest {
 
    private static final JsonMapper JSON = JsonMapper.shared();
+
+   // Every ANSI color or style sequence starts with the escape character.
+   private static final String ANSI_ESCAPE = "\u001B[";
 
    @TempDir
    Path root;
@@ -115,6 +119,45 @@ class CliTest {
 
       assertThat(result.exitCode()).isZero();
       assertThat(result.out()).contains("config", "--json", "--human", "--config");
+   }
+
+   @Test
+   void helpHasNoColorsWhenStdoutIsNotTerminal() {
+      Result result = CliHarness.run(taskwarrior.environment(), false, "--help");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("Usage: ztk").doesNotContain(ANSI_ESCAPE);
+   }
+
+   @Test
+   void usageErrorHasNoColorsWhenStdoutIsNotTerminal() {
+      Result result = CliHarness.run(taskwarrior.environment(), false, "add", "--force", "fix");
+
+      assertThat(result.exitCode()).isEqualTo(1);
+      assertThat(result.err()).contains("--force", "Usage: ztk add").doesNotContain(ANSI_ESCAPE);
+   }
+
+   @Test
+   void helpHasColorsOnTerminal() {
+      // Æsh also reads the real NO_COLOR variable, which the test environment cannot override.
+      assumeTrue(System.getenv("NO_COLOR") == null, "NO_COLOR is set in the environment running the tests");
+
+      Result result = CliHarness.run(taskwarrior.environment(), true, "--help");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains(ANSI_ESCAPE);
+   }
+
+   @Test
+   void noColorVariableDisablesColorsOnTerminal() {
+      Properties env = taskwarrior.environment();
+      // Any value counts, even empty, as defined by https://no-color.org.
+      env.setProperty("NO_COLOR", "");
+
+      Result result = CliHarness.run(env, true, "--help");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("Usage: ztk").doesNotContain(ANSI_ESCAPE);
    }
 
    @Test

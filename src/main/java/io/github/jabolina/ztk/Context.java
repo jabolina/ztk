@@ -1,0 +1,111 @@
+package io.github.jabolina.ztk;
+
+import java.nio.file.Path;
+import java.time.Clock;
+import java.util.Properties;
+
+import io.github.jabolina.ztk.configuration.Configuration;
+import io.github.jabolina.ztk.configuration.ConfigurationLoader;
+import io.github.jabolina.ztk.tasks.Tasks;
+import io.github.jabolina.ztk.taskwarrior.TaskStore;
+
+/**
+ * The dependencies of one ztk invocation.
+ *
+ * <p>
+ * Every dependency is created on first use, so commands that do not need a configuration (such as {@code --help})
+ * work without one. Commands reach the context through {@link io.github.jabolina.ztk.cli.ZtkInvocation#context()}.
+ * </p>
+ */
+public final class Context {
+
+   private final Properties env;
+   private final boolean tty;
+   private final OutputMode mode;
+   private final Path configurationFile;
+
+   // Internal objects created lazily, when requested by the command handlers.
+   private Configuration configuration;
+   private TaskStore store;
+   private Tasks tasks;
+
+   /**
+    * @param env the process environment.
+    * @param tty whether stdout is a terminal.
+    * @param mode the output mode requested on the command line.
+    * @param configurationFile the configuration file given with {@code --config}, if any.
+    */
+   public Context(Properties env, boolean tty, OutputMode mode, Path configurationFile) {
+      this.env = env;
+      this.tty = tty;
+      this.mode = mode;
+      this.configurationFile = configurationFile;
+   }
+
+   /**
+    * @return the effective configuration, loaded on first use.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public Configuration configuration() {
+      if (configuration == null) {
+         configuration = configurationFile != null
+               ? ConfigurationLoader.load(configurationFile, env)
+               : ConfigurationLoader.load(env);
+      }
+      return configuration;
+   }
+
+   /**
+    * @return the Taskwarrior store, created on first use.
+    * @throws ZtkException when the configuration is missing or invalid, or Taskwarrior is unsupported.
+    */
+   public TaskStore store() {
+      if (store == null) {
+         store = new TaskStore(configuration());
+      }
+      return store;
+   }
+
+   /**
+    * @return the task use cases, created on first use.
+    * @throws ZtkException when the configuration is missing or invalid, or Taskwarrior is unsupported.
+    */
+   public Tasks tasks() {
+      if (tasks == null) {
+         tasks = new Tasks(configuration(), store(), Clock.systemDefaultZone());
+      }
+      return tasks;
+   }
+
+   /**
+    * @return whether results are printed as JSON rather than human text.
+    */
+   public boolean json() {
+      return switch (mode) {
+         case JSON -> true;
+         case HUMAN -> false;
+
+         // Piped or redirected output is read by programs and agents.
+         case AUTO -> !tty;
+      };
+   }
+
+   /**
+    * How results are printed.
+    */
+   public enum OutputMode {
+      /**
+       * JSON when stdout is not a terminal, human text otherwise.
+       */
+      AUTO,
+
+      /**
+       * Always JSON, as requested with {@code --json}.
+       */
+      JSON,
+      /**
+       * Always human text, as requested with {@code --human}.
+       */
+      HUMAN
+   }
+}

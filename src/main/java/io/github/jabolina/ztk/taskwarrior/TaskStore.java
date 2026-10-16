@@ -78,6 +78,31 @@ public final class TaskStore {
    }
 
    /**
+    * Renders a Taskwarrior report as Taskwarrior prints it at a terminal, for people to read.
+    *
+    * <p>
+    * The table always has ANSI colors; callers remove them when colors are not wanted.
+    * </p>
+    *
+    * @param report the report to render.
+    * @return the report table, with column labels and colors.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails, including when nothing
+    *                      matches the report's filter.
+    */
+   public String render(Report report) {
+      List<String> args = new ArrayList<>();
+      // Overrides the base command's rc.verbose=nothing: the later setting wins, and people need the column labels.
+      args.add("rc.verbose=label");
+      // Captured output is not a terminal, so Taskwarrior would drop colors and wrap at 80 columns.
+      // Width 0 never wraps; the terminal wraps long lines itself.
+      args.add("rc.defaultwidth=0");
+      args.add("rc._forcecolor=on");
+      args.addAll(report.arguments());
+      args.add(report.name());
+      return run(args);
+   }
+
+   /**
     * Resolves a single task by its working-set ID or its UUID.
     *
     * @param reference the numeric ID shown by Taskwarrior, or the task UUID.

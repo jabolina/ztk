@@ -214,7 +214,8 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 | `review <id>` | Stops the task if active (an inactive task is only tagged), adds `+review`, keeps its other tags (a week task stays in the week). Prints the task (JSON: `id`, `uuid`, `description`). |
 | `done <id>` | Removes `+week` and completes the task in one Taskwarrior command (an active task is stopped). An already completed task fails with exit 3. Prints the task, named by its short UUID since completed tasks have no ID (JSON: `id` 0, `uuid`, `description`). |
 | `current` | Lists the active task(s) with their note paths (JSON: `tasks` array of `id`, `uuid`, `description`, `note`). Read-only: a task started outside ztk shows no note (JSON `note: null`) and a hint to run `ztk start <id>`. Nothing active is not an error (exit 0, empty `tasks`); the note file's existence is not checked (`check` finds broken links). |
-| `list [project]`, `week [project]` | As today. |
+| `week [project]` | Pending `+week` tasks, review tasks highlighted. Human output is Taskwarrior's own table (an ad hoc `weekview` report: ID, Active, Project, Issue, Description), rendered with forced colors and no wrapping; colors are stripped from human output outside a terminal or with `NO_COLOR` (forcing colors also overrides a `color=off` in the user's taskrc). JSON: `tasks` array, the common task shape. The project matches by prefix and includes subprojects, as Taskwarrior does. An empty week is not an error. |
+| `list [project]` | As today. |
 
 **Notes**
 

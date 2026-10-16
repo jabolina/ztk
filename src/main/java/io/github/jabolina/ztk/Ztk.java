@@ -138,7 +138,7 @@ public final class Ztk {
    }
 
    /**
-    * Creates the Æsh command containers, choosing whether help and usage messages use colors.
+    * Creates the Æsh command containers, choosing whether messages use colors.
     *
     * <p>
     * The choice applies to the command and all its subcommands.
@@ -148,7 +148,7 @@ public final class Ztk {
       private final boolean colors;
 
       /**
-       * @param colors whether help and usage messages may contain ANSI colors.
+       * @param colors whether messages may contain ANSI colors.
        */
       private ContainerBuilder(boolean colors) {
          this.colors = colors;

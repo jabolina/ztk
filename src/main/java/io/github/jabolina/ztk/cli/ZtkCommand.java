@@ -12,6 +12,7 @@ import io.github.jabolina.ztk.cli.commands.DoneCommand;
 import io.github.jabolina.ztk.cli.commands.ReviewCommand;
 import io.github.jabolina.ztk.cli.commands.StartCommand;
 import io.github.jabolina.ztk.cli.commands.StopCommand;
+import io.github.jabolina.ztk.cli.commands.WeekCommand;
 
 /**
  * The {@code ztk} root command, grouping every subcommand.
@@ -25,6 +26,7 @@ import io.github.jabolina.ztk.cli.commands.StopCommand;
             ReviewCommand.class,
             DoneCommand.class,
             CurrentCommand.class,
+            WeekCommand.class,
 })
 public class ZtkCommand implements Command<ZtkInvocation> {
 

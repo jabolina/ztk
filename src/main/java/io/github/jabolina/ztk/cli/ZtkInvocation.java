@@ -3,6 +3,8 @@ package io.github.jabolina.ztk.cli;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import org.aesh.command.CommandException;
 import org.aesh.command.CommandNotFoundException;
@@ -33,6 +35,9 @@ import tools.jackson.databind.node.ObjectNode;
  * @author José Bolina
  */
 public final class ZtkInvocation implements CommandInvocation {
+
+   // ANSI color sequences, ESC [ parameters m: the only escape sequences Taskwarrior emits.
+   private static final Pattern COLORS = Pattern.compile("\u001B\\[[0-9;]*m");
 
    // Version of every JSON shape ztk prints; bumped only on incompatible changes.
    private static final int SCHEMA = 1;
@@ -172,10 +177,22 @@ public final class ZtkInvocation implements CommandInvocation {
     * @param json the same result for programs, started with {@link #jsonResult()}.
     */
    public void result(String human, ObjectNode json) {
+      result(() -> human, json);
+   }
+
+   /**
+    * Prints a command result on stdout, producing the human text only when it is printed.
+    *
+    * @param human produces the result for people, e.g. by rendering a Taskwarrior report. Not called in JSON mode.
+    * @param json the same result for programs, started with {@link #jsonResult()}.
+    */
+   public void result(Supplier<String> human, ObjectNode json) {
       if (context.json()) {
          println(JSON.writeValueAsString(json));
+      } else if (context.colors()) {
+         print(human.get());
       } else {
-         print(human);
+         print(COLORS.matcher(human.get()).replaceAll(""));
       }
    }
 

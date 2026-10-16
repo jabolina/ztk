@@ -7,6 +7,7 @@ import java.util.List;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.configuration.Configuration;
+import io.github.jabolina.ztk.taskwarrior.Report;
 import io.github.jabolina.ztk.taskwarrior.Status;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
@@ -26,6 +27,14 @@ public final class Tasks {
 
    // Taskwarrior attribute assigning the project. Only the full name is accepted, not abbreviations like "pro:".
    private static final String PROJECT = "project:";
+
+   // An ad hoc report: Taskwarrior accepts report definitions as rc overrides, so the user's .taskrc needs none.
+   private static final List<String> WEEK_REPORT = List.of(
+         // The issue column needs its UDA defined. Only the type is set, so a label from the user's .taskrc is kept.
+         "rc.uda.issue.type=string",
+         "rc.report.weekview.columns=id,start.age,project,issue,description",
+         "rc.report.weekview.labels=ID,Active,Project,Issue,Description",
+         "rc.color.tag.review=bold blue");
 
    private final TaskStore store;
    private final TaskNotes notes;
@@ -104,6 +113,29 @@ public final class Tasks {
     */
    public List<Task> current() {
       return store.query("+ACTIVE");
+   }
+
+   /**
+    * Lists the tasks planned for the week, including those waiting for review.
+    *
+    * @param project the project to list, including its subprojects, or {@code null} for every project.
+    * @return the week's pending tasks and their table. The table is empty when the week has no tasks.
+    */
+   public Listing week(String project) {
+      List<String> filter = new ArrayList<>(List.of("status:pending", "+week"));
+      if (project != null) {
+         // Taskwarrior matches the start of the name:
+         // "Alpha" also select "Alpha.UI".
+         filter.add(PROJECT + project);
+      }
+      List<Task> tasks = store.query(filter.toArray(String[]::new));
+      // Taskwarrior fails a report that matches nothing, and there is nothing to show anyways.
+      if (tasks.isEmpty())
+         return Listing.EMPTY;
+
+      List<String> arguments = new ArrayList<>(WEEK_REPORT);
+      arguments.addAll(filter);
+      return new Listing(store.query(filter.toArray(String[]::new)), new Report("weekview", arguments));
    }
 
    /**

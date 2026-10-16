@@ -91,7 +91,7 @@ public final class Context {
    }
 
    /**
-    * @return whether help and usage messages may use ANSI colors.
+    * @return whether output may use ANSI colors.
     */
    public boolean colors() {
       // Colors only help people at a terminal. NO_COLOR turns them off when present, whatever its value, even empty.

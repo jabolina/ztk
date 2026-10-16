@@ -99,6 +99,13 @@ public final class Context {
    }
 
    /**
+    * @return whether ztk runs in an interactive session, where an editor can be opened.
+    */
+   public boolean interactive() {
+      return tty;
+   }
+
+   /**
     * How results are printed.
     */
    public enum OutputMode {

@@ -196,7 +196,7 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 ### 6.1 Output contract
 
 - Interactive session (stdin and stdout are terminals) → human output (tables, trees, color). `--json`, or stdin or stdout piped or redirected → JSON. `--human` forces human output otherwise. Colors appear only in an interactive session without `NO_COLOR` set.
-- **Path-result commands** (`add`, `begin`, `new`, `paper new`, `goal new`, `effort new`, `summary --write`, `report-file`) follow the same rule: on a terminal (or with `--human`) they print only the bare path on stdout; as JSON they print `{"schema":1,"id":…,"path":…}` (plus command-specific fields, e.g. `uuid` for tasks). Scripts that want the bare path pass `--human`, e.g. `FILE=$(ztk add "Fix bug" project:X --human)`, or read `.path` from the JSON. Their human messages (e.g. "Created task 3.") always go to stderr.
+- **Path-result commands** (`add`, `start`, `new`, `paper new`, `goal new`, `effort new`, `summary --write`, `report-file`) follow the same rule: on a terminal (or with `--human`) they print only the bare path on stdout; as JSON they print `{"schema":1,"id":…,"path":…}` (plus command-specific fields, e.g. `uuid` for tasks). Scripts that want the bare path pass `--human`, e.g. `FILE=$(ztk add "Fix bug" project:X --human)`, or read `.path` from the JSON. Their human messages (e.g. "Created task 3.") always go to stderr.
 - JSON always includes node IDs and absolute file paths. JSON shapes are versioned (`"schema": 1`) and covered by golden-file tests.
 - Exit codes: `0` ok, `1` usage/config error, `2` not found, `3` validation failure (e.g. unknown effort, missing project), `4` Taskwarrior error (its stderr is included).
 - Any argument starting with `-` that is not a recognized option prints the command's usage and exits 1 without side effects. This includes arguments passed through to Taskwarrior; tag removal (`-tag`) is not supported via `ztk add`. `--help`/`-h` print usage and exit 0. The guard applies to positional arguments only: values of recognized options are exempt, and a lone `-` is allowed as the stdin marker (e.g. `--summary -`).
@@ -209,8 +209,8 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 | Command | Behavior |
 |---|---|
 | `add <desc> project:X [taskwarrior attrs] [--effort <slug>]` | Creates the task **and its note** (`<project>/<YYYYMMDD>-<slug>.md`, linked through UDA `note`) and prints the note path. Requires a literal `project:<name>` and fails with code 3 without it, or if the effort does not exist, before anything is written. Sets UDA `effort`. Replaces the old `add` + `touch` sequence. |
-| `start <id>` / `begin <id>` | Single-active-task rule; adds `+week`, removes `+review`; `start` opens the note, `begin` prints its path. Creates the note and sets UDA `note` if missing (tasks added before ztk2 or with plain `task`). |
-| `stop` | Stops all active tasks, then shows `week`. |
+| `start <id> [--editor]` | Single-active-task rule (exit 3 naming the active task); adds `+week`, removes `+review`; starting the active task again succeeds. Prints the note path; `--editor`/`-e` also opens it, and fails before starting outside an interactive session. Finds the note by UDA `note`, then by `task_uuid` frontmatter anywhere in the knowledge base (setting the UDA), and creates it otherwise; a task without a project fails with exit 3 before starting. Replaces the old `start` + `begin` pair. |
+| `stop` | Stops all active tasks and lists them (JSON: `tasks` array, empty when nothing was active; not an error). No longer shows `week`; use `ztk stop && ztk week`. |
 | `review <id>` | Stop, add `+review`. |
 | `done <id>` | Removes `+week`, completes the task. |
 | `current` | Active task(s) with their note paths. |

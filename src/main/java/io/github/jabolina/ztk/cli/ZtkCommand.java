@@ -7,6 +7,8 @@ import org.aesh.command.option.Option;
 
 import io.github.jabolina.ztk.cli.commands.AddCommand;
 import io.github.jabolina.ztk.cli.commands.ConfigCommand;
+import io.github.jabolina.ztk.cli.commands.StartCommand;
+import io.github.jabolina.ztk.cli.commands.StopCommand;
 
 /**
  * The {@code ztk} root command, grouping every subcommand.
@@ -15,6 +17,8 @@ import io.github.jabolina.ztk.cli.commands.ConfigCommand;
       groupCommands = {
             ConfigCommand.class,
             AddCommand.class,
+            StartCommand.class,
+            StopCommand.class,
 })
 public class ZtkCommand implements Command<ZtkInvocation> {
 

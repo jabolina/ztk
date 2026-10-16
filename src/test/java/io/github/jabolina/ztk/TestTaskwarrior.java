@@ -126,6 +126,27 @@ public final class TestTaskwarrior {
    }
 
    /**
+    * Configures an editor that records the arguments it is started with, instead of the default {@code true}.
+    *
+    * @return the file the editor writes its arguments to, one per line. It exists only once the editor ran.
+    * @throws UncheckedIOException when the editor script or the configuration cannot be written.
+    */
+   public Path recordingEditor() {
+      Path record = root.resolve("editor.args");
+      try {
+         Path editor = Files.writeString(root.resolve("editor.sh"), """
+               #!/bin/sh
+               printf '%%s\\n' "$@" > '%s'
+               """.formatted(record));
+         editor.toFile().setExecutable(true);
+         Files.writeString(ztkrc, Files.readString(ztkrc).replace("editor=true", "editor=" + editor));
+      } catch (IOException e) {
+         throw new UncheckedIOException(e);
+      }
+      return record;
+   }
+
+   /**
     * Runs {@code task} directly against the fixture, for test setup and assertions.
     *
     * @param args the Taskwarrior arguments, e.g. {@code "add", "fix bug", "project:X"}.

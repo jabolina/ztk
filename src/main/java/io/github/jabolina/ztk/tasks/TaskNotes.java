@@ -1,5 +1,6 @@
 package io.github.jabolina.ztk.tasks;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -11,7 +12,10 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.stream.Stream;
 
+import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
@@ -62,11 +66,28 @@ final class TaskNotes {
    /**
     * Creates the task's note from the template and links it to the task.
     *
-    * @param task the task the note belongs to. It must have a project.
-    * @return the absolute path of the created note.
+    * @param task the task the note belongs to.
+    * @return the absolute path of the task's note.
+    * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when the note must be created and the task has no
+    *                      project. Nothing is written in that case.
     */
    public Path create(Task task) {
-      String project = task.project().orElseThrow();
+      if (task.note().isPresent()) {
+         // Already linked: the note attribute is relative to the knowledge base.
+         return configuration.dataLocation().resolve(task.note().get());
+      }
+
+      Optional<Path> existent = findByTaskUuid(task.uuid());
+      if (existent.isPresent()) {
+         // Link it, so the next lookup does not search the knowledge base again.
+         store.setNote(task, configuration.dataLocation().relativize(existent.get()));
+         return existent.get();
+      }
+
+      String project = task.project().orElseThrow(() -> ZtkException.validation(
+            "Task " + task.id() + " ('" + task.description() + "') has no project, which is the folder of its note."
+                  + System.lineSeparator()
+                  + "Assign one with 'task " + task.id() + " modify project:<name>', then try again."));
       OffsetDateTime now = OffsetDateTime.now(clock);
 
       // Seconds precision, always explicit: toString() drops ":00" seconds, and a real clock carries nanoseconds.
@@ -77,6 +98,37 @@ final class TaskNotes {
       Path note = write(configuration.dataLocation().resolve(project), name, content);
       store.setNote(task, configuration.dataLocation().relativize(note));
       return note;
+   }
+
+   /**
+    * Searches the whole knowledge base for a note whose frontmatter names the task.
+    *
+    * <p>
+    * Notes may sit outside the project folder, e.g. in a folder whose name differs from the project only by case, so
+    * every Markdown file is considered.
+    * </p>
+    *
+    * @param uuid the task UUID.
+    * @return the first note containing {@code task_uuid: <uuid>}, if any.
+    * @throws UncheckedIOException when the knowledge base cannot be traversed.
+    */
+   private Optional<Path> findByTaskUuid(String uuid) {
+      Path root = configuration.dataLocation();
+      // A new knowledge base may not exist until the first note is written.
+      if (!Files.isDirectory(root)) {
+         return Optional.empty();
+      }
+
+      String marker = "task_uuid: " + uuid;
+      try (Stream<Path> files = Files.walk(root)) {
+         return files
+               .filter(file -> file.getFileName().toString().endsWith(".md"))
+               .filter(Files::isRegularFile)
+               .filter(file -> frontmatterContains(file, marker))
+               .findFirst();
+      } catch (IOException e) {
+         throw new UncheckedIOException(e);
+      }
    }
 
    /**
@@ -145,5 +197,37 @@ final class TaskNotes {
       fields.put("project", project);
       fields.put("issue", task.issue().orElse(""));
       return "---\n" + YAML.writeValueAsString(fields) + "---\n";
+   }
+
+   /**
+    * Tells whether a note's frontmatter contains a line.
+    *
+    * <p>
+    * Only the frontmatter is read, so the cost does not depend on the size of the note.
+    * </p>
+    *
+    * @param file the note to read.
+    * @param line the line to look for, e.g. {@code task_uuid: <uuid>}.
+    * @return whether the frontmatter contains the line. A file without frontmatter, or that cannot be read as UTF-8,
+    *         never does.
+    */
+   private static boolean frontmatterContains(Path file, String line) {
+      try (BufferedReader reader = Files.newBufferedReader(file)) {
+         // The frontmatter must open on the first line; any other file cannot be a task note.
+         if (!"---".equals(reader.readLine())) {
+            return false;
+         }
+         // Stops at the closing delimiter, or at the end of a file whose frontmatter is never closed.
+         for (String current = reader.readLine(); current != null && !current.equals("---"); current = reader.readLine()) {
+            // strip() tolerates trailing spaces and Windows line endings.
+            if (current.strip().equals(line)) {
+               return true;
+            }
+         }
+         return false;
+      } catch (IOException e) {
+         // Unreadable or not UTF-8: it cannot be the note we look for, and must not stop the search.
+         return false;
+      }
    }
 }

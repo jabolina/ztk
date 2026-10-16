@@ -2,6 +2,7 @@ package io.github.jabolina.ztk.tasks;
 
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 
 import io.github.jabolina.ztk.ZtkException;
@@ -58,6 +59,44 @@ public final class Tasks {
    }
 
    /**
+    * Starts working on a task: starts it in Taskwarrior and moves it from review to the current week.
+    *
+    * @param reference the task ID or UUID.
+    * @return the started task, as stored by Taskwarrior, with its note.
+    * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no task has that ID or UUID.
+    */
+   public TaskNote start(String reference) {
+      Task task = store.get(reference);
+      requireNoOtherActive(task);
+      Path note = notes.create(task);
+      List<String> week = List.of("+week", "-review");
+      if (task.active()) {
+         // It requires a distinction between starting a task which is already started.
+         store.modify(task, week);
+      } else {
+         store.start(task, week);
+      }
+      // Re-read: starting changes the tags and the start time.
+      return new TaskNote(store.get(task.uuid()), note);
+   }
+
+   /**
+    * Stops working on every active task.
+    *
+    * @return the stopped tasks, as stored by Taskwarrior after stopping. Empty when no task was active.
+    */
+   public List<Task> stop() {
+      List<Task> stopped = new ArrayList<>();
+      // Usually a single task, but plain Taskwarrior can start several.
+      for (Task active : store.query("+ACTIVE")) {
+         store.stop(active);
+         // Re-read: stopping removes the start time.
+         stopped.add(store.get(active.uuid()));
+      }
+      return stopped;
+   }
+
+   /**
     * Ensures the words assign a non-empty project, since a task note lives in its project folder.
     *
     * @param words the words given to {@link #add(List)}.
@@ -70,5 +109,24 @@ public final class Tasks {
          }
       }
       throw ZtkException.validation("A task needs a project: add project:<name>, e.g. ztk add \"Fix bug\" project:Alpha");
+   }
+
+   /**
+    * Ensures no task other than the given one is being worked on, since only one task is active at a time.
+    *
+    * @param task the task about to be started.
+    * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when another task is active, naming it and the
+    *                      commands that release it.
+    */
+   private void requireNoOtherActive(Task task) {
+      for (Task active : store.query("+ACTIVE")) {
+         // The task itself may already be active: starting it again is allowed.
+         if (!active.uuid().equals(task.uuid())) {
+            throw ZtkException.validation("Cannot start Task " + task.id() + " ('" + task.description() + "'): Task "
+                  + active.id() + " ('" + active.description() + "') is currently active."
+                  + System.lineSeparator()
+                  + "Run 'ztk stop' to pause it, or 'ztk done " + active.id() + "' to complete it, then start again.");
+         }
+      }
    }
 }

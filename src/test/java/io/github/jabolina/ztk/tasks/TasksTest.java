@@ -235,6 +235,30 @@ class TasksTest {
    }
 
    @Test
+   void reviewStopsTheActiveTaskAndTagsItForReviewKeepingItInTheWeek() {
+      TaskNote added = tasks.add(List.of("Fix flaky test", "project:Alpha"));
+      String reference = String.valueOf(added.task().id());
+      tasks.start(reference);
+
+      Task reviewed = tasks.review(reference);
+
+      assertThat(reviewed.active()).isFalse();
+      assertThat(reviewed.tags()).containsExactlyInAnyOrder("week", "review");
+      // The returned task is the stored state, not a stale copy.
+      assertThat(store.get(added.task().uuid())).isEqualTo(reviewed);
+   }
+
+   @Test
+   void reviewTagsATaskThatIsNotActive() {
+      TaskNote added = tasks.add(List.of("Fix flaky test", "project:Alpha"));
+
+      Task reviewed = tasks.review(String.valueOf(added.task().id()));
+
+      assertThat(reviewed.active()).isFalse();
+      assertThat(reviewed.tags()).containsExactly("review");
+   }
+
+   @Test
    void addWithoutProjectIsRejectedBeforeAnythingIsWritten() {
       assertThatThrownBy(() -> tasks.add(List.of("orphan", "+week")))
             .isInstanceOfSatisfying(ZtkException.class,

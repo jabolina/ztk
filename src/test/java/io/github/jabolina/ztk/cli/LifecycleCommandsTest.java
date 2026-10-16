@@ -128,6 +128,31 @@ class LifecycleCommandsTest {
    }
 
    @Test
+   void reviewStopsTheTaskAndSaysItIsReadyForReviewOnTerminal() {
+      CliHarness.run(taskwarrior.environment(), false, "start", "1");
+
+      Result result = CliHarness.run(taskwarrior.environment(), true, "review", "1");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("Task 1", "Fix flaky test", "review");
+      Task task = store.get("1");
+      assertThat(task.active()).isFalse();
+      assertThat(task.tags()).containsExactlyInAnyOrder("week", "review");
+   }
+
+   @Test
+   void reviewPrintsTheTaskAsJsonWhenPiped() {
+      Result result = CliHarness.run(taskwarrior.environment(), false, "review", "1");
+
+      assertThat(result.exitCode()).isZero();
+      JsonNode json = JSON.readTree(result.out());
+      assertThat(json.path("schema").asInt()).isEqualTo(1);
+      assertThat(json.path("id").asInt()).isEqualTo(1);
+      assertThat(json.path("uuid").asString()).isEqualTo(store.get("1").uuid());
+      assertThat(json.path("description").asString()).isEqualTo("Fix flaky test");
+   }
+
+   @Test
    void startWithEditorOutsideAnInteractiveSessionFailsBeforeStarting() {
       Result result = CliHarness.run(taskwarrior.environment(), false, "start", "1", "--editor");
 

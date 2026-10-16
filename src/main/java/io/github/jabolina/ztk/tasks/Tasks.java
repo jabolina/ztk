@@ -97,6 +97,23 @@ public final class Tasks {
    }
 
    /**
+    * Hands a task over for review: stops working on it and tags it for review, keeping it in the current week.
+    *
+    * @param reference the task ID or UUID.
+    * @return the reviewed task, as stored by Taskwarrior.
+    * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no task has that ID or UUID.
+    */
+   public Task review(String reference) {
+      Task task = store.get(reference);
+      // Taskwarrior refuses to stop a task that is not started.
+      if (task.active())
+         store.stop(task);
+      store.modify(task, List.of("+review"));
+      // Re-read: stopping removes the start time and the tags changed.
+      return store.get(task.uuid());
+   }
+
+   /**
     * Ensures the words assign a non-empty project, since a task note lives in its project folder.
     *
     * @param words the words given to {@link #add(List)}.

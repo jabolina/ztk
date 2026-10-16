@@ -23,7 +23,7 @@ public record Task(
       int id,
       String uuid,
       String description,
-      String status,
+      Status status,
       Optional<String> project,
       List<String> tags,
       boolean active,
@@ -34,10 +34,16 @@ public record Task(
    /**
     * Names the task for people, in messages and errors.
     *
-    * @return the ID and description, e.g. {@code Task 3 ('Fix flaky test')}.
+    * <p>
+    * Tasks outside the working set, such as completed ones, have no ID and are named by the first eight characters
+    * of their UUID, as Taskwarrior does.
+    * </p>
+    *
+    * @return the ID and description, e.g. {@code Task 3 ('Fix flaky test')} or {@code Task 49d52b73 ('Fix flaky test')}.
     */
    public String label() {
-      return "Task " + id + " ('" + description + "')";
+      String name = id == 0 ? uuid.substring(0, 8) : String.valueOf(id);
+      return "Task " + name + " ('" + description + "')";
    }
 
    @Override

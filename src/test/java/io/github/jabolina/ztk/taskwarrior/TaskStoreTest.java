@@ -44,7 +44,7 @@ class TaskStoreTest {
       assertThat(task.id()).isEqualTo(1);
       assertThat(task.uuid()).hasSize(36);
       assertThat(task.description()).isEqualTo("first");
-      assertThat(task.status()).isEqualTo("pending");
+      assertThat(task.status()).isEqualTo(Status.PENDING);
       assertThat(task.project()).contains("Alpha");
       assertThat(task.tags()).containsExactly("week");
    }

@@ -19,6 +19,7 @@ import io.github.jabolina.ztk.TestTaskwarrior;
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.configuration.ConfigurationLoader;
+import io.github.jabolina.ztk.taskwarrior.Status;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
 
@@ -256,6 +257,37 @@ class TasksTest {
 
       assertThat(reviewed.active()).isFalse();
       assertThat(reviewed.tags()).containsExactly("review");
+   }
+
+   @Test
+   void doneCompletesTheActiveTaskAndTakesItOutOfTheWeek() {
+      TaskNote added = tasks.add(List.of("Fix flaky test", "project:Alpha", "+backend"));
+      String reference = String.valueOf(added.task().id());
+      tasks.start(reference);
+
+      Task completed = tasks.done(reference);
+
+      assertThat(completed.uuid()).isEqualTo(added.task().uuid());
+      assertThat(completed.status()).isEqualTo(Status.COMPLETED);
+      assertThat(completed.active()).isFalse();
+      // Only the week tag is removed; the task's own tags stay for reports.
+      assertThat(completed.tags()).containsExactly("backend");
+      assertThat(store.get(added.task().uuid())).isEqualTo(completed);
+   }
+
+   @Test
+   void doneOnACompletedTaskIsRejectedAndSaysSo() {
+      TaskNote added = tasks.add(List.of("Fix flaky test", "project:Alpha"));
+      String uuid = added.task().uuid();
+      tasks.done(uuid);
+
+      assertThatThrownBy(() -> tasks.done(uuid))
+            .isInstanceOfSatisfying(ZtkException.class,
+                  e -> assertThat(e.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode()))
+            // Completed tasks have no ID, so the task is named by its short UUID, as Taskwarrior does.
+            .hasMessageContaining(uuid.substring(0, 8))
+            .hasMessageContaining("Fix flaky test")
+            .hasMessageContaining("already completed");
    }
 
    @Test

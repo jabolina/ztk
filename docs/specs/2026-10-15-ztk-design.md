@@ -212,7 +212,7 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 | `start <id> [--editor]` | Single-active-task rule (exit 3 naming the active task); adds `+week`, removes `+review`; starting the active task again succeeds. Prints the note path; `--editor`/`-e` also opens it, and fails before starting outside an interactive session. Finds the note by UDA `note`, then by `task_uuid` frontmatter anywhere in the knowledge base (setting the UDA), and creates it otherwise; a task without a project fails with exit 3 before starting. Replaces the old `start` + `begin` pair. |
 | `stop` | Stops all active tasks and lists them (JSON: `tasks` array, empty when nothing was active; not an error). No longer shows `week`; use `ztk stop && ztk week`. |
 | `review <id>` | Stops the task if active (an inactive task is only tagged), adds `+review`, keeps its other tags (a week task stays in the week). Prints the task (JSON: `id`, `uuid`, `description`). |
-| `done <id>` | Removes `+week`, completes the task. |
+| `done <id>` | Removes `+week` and completes the task in one Taskwarrior command (an active task is stopped). An already completed task fails with exit 3. Prints the task, named by its short UUID since completed tasks have no ID (JSON: `id` 0, `uuid`, `description`). |
 | `current` | Active task(s) with their note paths. |
 | `list [project]`, `week [project]` | As today. |
 

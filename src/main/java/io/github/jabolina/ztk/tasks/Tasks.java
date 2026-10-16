@@ -7,6 +7,7 @@ import java.util.List;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.configuration.Configuration;
+import io.github.jabolina.ztk.taskwarrior.Status;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
 
@@ -110,6 +111,27 @@ public final class Tasks {
          store.stop(task);
       store.modify(task, List.of("+review"));
       // Re-read: stopping removes the start time and the tags changed.
+      return store.get(task.uuid());
+   }
+
+   /**
+    * Completes a task and takes it out of the current week, stopping it first if it is active.
+    *
+    * @param reference the task ID or UUID.
+    * @return the completed task, as stored by Taskwarrior. Completed tasks leave the working set, so its ID is
+    *         {@code 0}.
+    * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no task has that ID or UUID.
+    * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when the task is already completed.
+    */
+   public Task done(String reference) {
+      Task task = store.get(reference);
+      if (task.status() == Status.COMPLETED) {
+         throw ZtkException.validation(task.label() + " is already completed, nothing to do."
+               + System.lineSeparator()
+               + "To reopen it, run 'task " + task.uuid() + " modify status:pending'.");
+      }
+      // One command: Taskwarrior stops an active task when completing it, and applies the modification atomically.
+      store.done(task, List.of("-week"));
       return store.get(task.uuid());
    }
 

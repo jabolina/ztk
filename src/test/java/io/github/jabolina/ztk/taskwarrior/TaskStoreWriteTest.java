@@ -41,7 +41,7 @@ class TaskStoreWriteTest {
       assertThat(task.description()).isEqualTo("write spec");
       assertThat(task.project()).contains("Alpha");
       assertThat(task.tags()).containsExactly("week");
-      assertThat(task.status()).isEqualTo("pending");
+      assertThat(task.status()).isEqualTo(Status.PENDING);
       assertThat(store.get(task.uuid())).isEqualTo(task);
    }
 
@@ -82,10 +82,10 @@ class TaskStoreWriteTest {
    void doneCompletesTheTask() {
       Task task = store.add(List.of("work", "project:Alpha"));
 
-      store.done(task);
+      store.done(task, List.of());
 
       Task completed = store.get(task.uuid());
-      assertThat(completed.status()).isEqualTo("completed");
+      assertThat(completed.status()).isEqualTo(Status.COMPLETED);
       // Completed tasks leave the working set, so they no longer have an ID.
       assertThat(completed.id()).isZero();
    }

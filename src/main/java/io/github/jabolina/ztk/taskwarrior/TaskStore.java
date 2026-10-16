@@ -157,13 +157,19 @@ public final class TaskStore {
    }
 
    /**
-    * Marks a task as completed.
+    * Marks a task as completed, applying modifications in the same Taskwarrior command.
+    *
+    * <p>
+    * Completing an active task also stops it.
+    * </p>
     *
     * @param task the task to complete.
-    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior rejects the change.
+    * @param modifications Taskwarrior modifications to apply while completing, e.g. {@code "-week"}.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior rejects the change, e.g. the
+    *                      task is already completed.
     */
-   public void done(Task task) {
-      change(task, "done", List.of());
+   public void done(Task task, List<String> modifications) {
+      change(task, "done", modifications);
    }
 
    /**
@@ -290,7 +296,7 @@ public final class TaskStore {
             node.path("id").asInt(0),
             node.path("uuid").asString(),
             node.path("description").asString(),
-            node.path("status").asString(),
+            Status.parse(node.path("status").asString()),
             node.optional("project").map(JsonNode::asString),
             List.copyOf(tags),
             // Taskwarrior only exports "start" while the task is started, stopping it removes the field.

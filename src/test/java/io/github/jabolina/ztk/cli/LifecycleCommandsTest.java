@@ -13,6 +13,7 @@ import io.github.jabolina.ztk.CliHarness.Result;
 import io.github.jabolina.ztk.TestTaskwarrior;
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.configuration.ConfigurationLoader;
+import io.github.jabolina.ztk.taskwarrior.Status;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
 import tools.jackson.databind.JsonNode;
@@ -150,6 +151,17 @@ class LifecycleCommandsTest {
       assertThat(json.path("id").asInt()).isEqualTo(1);
       assertThat(json.path("uuid").asString()).isEqualTo(store.get("1").uuid());
       assertThat(json.path("description").asString()).isEqualTo("Fix flaky test");
+   }
+
+   @Test
+   void doneCompletesTheTaskAndSaysSoOnTerminal() {
+      String uuid = store.get("1").uuid();
+
+      Result result = CliHarness.run(taskwarrior.environment(), true, "done", "1");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("Completed", "Fix flaky test");
+      assertThat(store.get(uuid).status()).isEqualTo(Status.COMPLETED);
    }
 
    @Test

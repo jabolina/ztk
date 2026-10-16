@@ -7,7 +7,6 @@ import org.aesh.command.option.Argument;
 
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.taskwarrior.Task;
-import tools.jackson.databind.node.ObjectNode;
 
 /**
  * {@code ztk review}: hands a task over for review, stopping it if it is active.
@@ -33,13 +32,8 @@ public class ReviewCommand implements Command<ZtkInvocation> {
    @Override
    public CommandResult execute(ZtkInvocation invocation) {
       Task task = invocation.context().tasks().review(reference);
-      String human = "Task " + task.id() + " ('" + task.description() + "') is ready for review."
-            + System.lineSeparator();
-      ObjectNode json = invocation.jsonResult();
-      json.put("id", task.id());
-      json.put("uuid", task.uuid());
-      json.put("description", task.description());
-      invocation.result(human, json);
+      String human = task.label() + " is ready for review." + System.lineSeparator();
+      invocation.result(human, task.writeJson(invocation.jsonResult()));
       return CommandResult.SUCCESS;
    }
 }

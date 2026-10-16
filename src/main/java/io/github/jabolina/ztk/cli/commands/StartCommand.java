@@ -53,11 +53,9 @@ public class StartCommand implements Command<ZtkInvocation> {
       Path note = started.note();
 
       // Human message redirected to stderr, results to stdout.
-      invocation.printErr("Started Task " + started.task().id() + " ('" + started.task().description() + "').");
+      invocation.printErr("Started " + started.task().label() + ".");
 
-      ObjectNode json = invocation.jsonResult();
-      json.put("id", started.task().id());
-      json.put("uuid", started.task().uuid());
+      ObjectNode json = started.task().writeJson(invocation.jsonResult());
       json.put("path", note.toString());
       invocation.result(note + System.lineSeparator(), json);
 

@@ -85,7 +85,7 @@ final class TaskNotes {
       }
 
       String project = task.project().orElseThrow(() -> ZtkException.validation(
-            "Task " + task.id() + " ('" + task.description() + "') has no project, which is the folder of its note."
+            task.label() + " has no project, which is the folder of its note."
                   + System.lineSeparator()
                   + "Assign one with 'task " + task.id() + " modify project:<name>', then try again."));
       OffsetDateTime now = OffsetDateTime.now(clock);

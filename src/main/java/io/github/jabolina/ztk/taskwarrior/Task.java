@@ -3,6 +3,9 @@ package io.github.jabolina.ztk.taskwarrior;
 import java.util.List;
 import java.util.Optional;
 
+import io.github.jabolina.ztk.util.JsonWritable;
+import tools.jackson.databind.node.ObjectNode;
+
 /**
  * A Taskwarrior task.
  *
@@ -26,4 +29,22 @@ public record Task(
       boolean active,
       Optional<String> note,
       Optional<String> issue
-) { }
+) implements JsonWritable {
+
+   /**
+    * Names the task for people, in messages and errors.
+    *
+    * @return the ID and description, e.g. {@code Task 3 ('Fix flaky test')}.
+    */
+   public String label() {
+      return "Task " + id + " ('" + description + "')";
+   }
+
+   @Override
+   public ObjectNode writeJson(ObjectNode target) {
+      target.put("id", id);
+      target.put("uuid", uuid);
+      target.put("description", description);
+      return target;
+   }
+}

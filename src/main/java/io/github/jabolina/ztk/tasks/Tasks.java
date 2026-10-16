@@ -139,8 +139,7 @@ public final class Tasks {
       for (Task active : store.query("+ACTIVE")) {
          // The task itself may already be active: starting it again is allowed.
          if (!active.uuid().equals(task.uuid())) {
-            throw ZtkException.validation("Cannot start Task " + task.id() + " ('" + task.description() + "'): Task "
-                  + active.id() + " ('" + active.description() + "') is currently active."
+            throw ZtkException.validation("Cannot start " + task.label() + ": " + active.label() + " is currently active."
                   + System.lineSeparator()
                   + "Run 'ztk stop' to pause it, or 'ztk done " + active.id() + "' to complete it, then start again.");
          }

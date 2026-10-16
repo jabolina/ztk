@@ -38,17 +38,11 @@ public class StopCommand implements Command<ZtkInvocation> {
       ObjectNode json = invocation.jsonResult();
       ArrayNode tasks = json.putArray("tasks");
       for (Task task : stopped) {
-         human.append("Stopped Task ")
-               .append(task.id())
-               .append(" ('")
-               .append(task.description())
-               .append("')")
+         human.append("Stopped ")
+               .append(task.label())
                .append(System.lineSeparator());
 
-         ObjectNode entry = tasks.addObject();
-         entry.put("id", task.id());
-         entry.put("uuid", task.uuid());
-         entry.put("description", task.description());
+         task.writeJson(tasks.addObject());
       }
 
       if (stopped.isEmpty()) {

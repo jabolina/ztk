@@ -46,9 +46,7 @@ public class AddCommand implements Command<ZtkInvocation> {
       // Human messages redirected to stderr, the result will go stdout.
       invocation.printErr("Created task " + added.task().id() + ".");
 
-      ObjectNode json = invocation.jsonResult();
-      json.put("id", added.task().id());
-      json.put("uuid", added.task().uuid());
+      ObjectNode json = added.task().writeJson(invocation.jsonResult());
       json.put("path", note.toString());
       invocation.result(note + System.lineSeparator(), json);
       return CommandResult.SUCCESS;

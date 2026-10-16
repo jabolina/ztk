@@ -129,6 +129,74 @@ class LifecycleCommandsTest {
    }
 
    @Test
+   void currentListsTheActiveTaskWithItsNotePath() {
+      taskwarrior.task("add", "Write spec", "project:Alpha");
+      CliHarness.run(taskwarrior.environment(), false, "start", "1");
+      Path note = taskwarrior.dataLocation().resolve(store.get("1").note().orElseThrow());
+
+      Result result = CliHarness.run(taskwarrior.environment(), true, "current");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("Task 1", "Fix flaky test", note.toString())
+            // Only the active task is listed.
+            .doesNotContain("Write spec");
+   }
+
+   @Test
+   void currentPrintsTheActiveTasksAsJsonWhenPiped() {
+      CliHarness.run(taskwarrior.environment(), false, "start", "1");
+      Task task = store.get("1");
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "current");
+
+      assertThat(result.exitCode()).isZero();
+      JsonNode json = JSON.readTree(result.out());
+      assertThat(json.path("schema").asInt()).isEqualTo(1);
+      assertThat(json.path("tasks")).hasSize(1);
+      JsonNode current = json.path("tasks").get(0);
+      assertThat(current.path("id").asInt()).isEqualTo(1);
+      assertThat(current.path("uuid").asString()).isEqualTo(task.uuid());
+      assertThat(current.path("description").asString()).isEqualTo("Fix flaky test");
+      assertThat(current.path("note").asString())
+            .isEqualTo(taskwarrior.dataLocation().resolve(task.note().orElseThrow()).toString());
+   }
+
+   @Test
+   void currentHintsHowToLinkTheNoteOfATaskStartedOutsideZtk() {
+      // Plain Taskwarrior starts the task without creating or linking a note.
+      taskwarrior.task("1", "start");
+
+      Result result = CliHarness.run(taskwarrior.environment(), true, "current");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("Task 1", "Fix flaky test", "ztk start 1");
+      // Read-only: the note is neither linked nor created.
+      assertThat(store.get("1").note()).isEmpty();
+      assertThat(taskwarrior.dataLocation()).isEmptyDirectory();
+   }
+
+   @Test
+   void currentWritesANullNoteForATaskWithoutOneWhenPiped() {
+      taskwarrior.task("1", "start");
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "current");
+
+      assertThat(result.exitCode()).isZero();
+      JsonNode current = JSON.readTree(result.out()).path("tasks").get(0);
+      // The key is always there, so scripts can test it instead of guessing.
+      assertThat(current.has("note")).isTrue();
+      assertThat(current.path("note").isNull()).isTrue();
+   }
+
+   @Test
+   void currentWithNothingActiveSaysSoAndSucceeds() {
+      Result result = CliHarness.run(taskwarrior.environment(), true, "current");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("No task is active", "ztk start");
+   }
+
+   @Test
    void reviewStopsTheTaskAndSaysItIsReadyForReviewOnTerminal() {
       CliHarness.run(taskwarrior.environment(), false, "start", "1");
 

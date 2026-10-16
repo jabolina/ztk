@@ -98,6 +98,15 @@ public final class Tasks {
    }
 
    /**
+    * Lists the tasks being worked on.
+    *
+    * @return the active tasks. Usually one, empty when no task is active.
+    */
+   public List<Task> current() {
+      return store.query("+ACTIVE");
+   }
+
+   /**
     * Hands a task over for review: stops working on it and tags it for review, keeping it in the current week.
     *
     * @param reference the task ID or UUID.

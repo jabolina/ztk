@@ -7,6 +7,7 @@ import org.aesh.command.option.Option;
 
 import io.github.jabolina.ztk.cli.commands.AddCommand;
 import io.github.jabolina.ztk.cli.commands.ConfigCommand;
+import io.github.jabolina.ztk.cli.commands.CurrentCommand;
 import io.github.jabolina.ztk.cli.commands.DoneCommand;
 import io.github.jabolina.ztk.cli.commands.ReviewCommand;
 import io.github.jabolina.ztk.cli.commands.StartCommand;
@@ -23,6 +24,7 @@ import io.github.jabolina.ztk.cli.commands.StopCommand;
             StopCommand.class,
             ReviewCommand.class,
             DoneCommand.class,
+            CurrentCommand.class,
 })
 public class ZtkCommand implements Command<ZtkInvocation> {
 

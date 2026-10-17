@@ -68,6 +68,21 @@ class CliTest {
    }
 
    @Test
+   void configShowListsEveryFolderInsideDataLocation() {
+      Result result = CliHarness.run(taskwarrior.environment(), false, "config", "show");
+
+      // Unset in the fixture, so these are the defaults: shown so agents know where each kind of note lives.
+      JsonNode values = JSON.readTree(result.out()).path("values");
+      Path data = taskwarrior.dataLocation();
+      assertThat(values.path("folder.zettel").asString()).isEqualTo(data.resolve("zettel").toString());
+      assertThat(values.path("folder.papers").asString()).isEqualTo(data.resolve("papers").toString());
+      assertThat(values.path("folder.goals").asString()).isEqualTo(data.resolve("goals").toString());
+      assertThat(values.path("folder.efforts").asString()).isEqualTo(data.resolve("efforts").toString());
+      assertThat(values.path("folder.journal").asString()).isEqualTo(data.resolve("journal").toString());
+      assertThat(values.path("folder.summaries").asString()).isEqualTo(data.resolve("summaries").toString());
+   }
+
+   @Test
    void humanFlagForcesHumanOutputWhenPiped() {
       Result result = CliHarness.run(taskwarrior.environment(), false, "--human", "config", "show");
 

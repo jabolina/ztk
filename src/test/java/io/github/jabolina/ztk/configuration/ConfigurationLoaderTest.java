@@ -10,6 +10,8 @@ import java.util.Properties;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import io.github.jabolina.ztk.ZtkException;
 
@@ -167,15 +169,68 @@ class ConfigurationLoaderTest {
    }
 
    @Test
-   void zettelFolderDefaultsToZettelAndIsRelativeToDataLocation() throws IOException {
+   void foldersDefaultToTheirNamesInsideDataLocation() throws IOException {
       Path data = Files.createDirectories(home.resolve("cerebro"));
-      Path withKey = write(home.resolve("with-key.rc"), "data.location=" + data + "\nfolder.zettel=notes/zettels\n");
-      Path withoutKey = write(home.resolve("without-key.rc"), "data.location=" + data + "\n");
+      Path rc = write(home.resolve(".ztkrc"), "data.location=" + data + "\n");
 
-      assertThat(ConfigurationLoader.load(withKey, environment()).zettelLocation())
-            .isEqualTo(data.resolve("notes/zettels"));
-      // Not required to exist: the first zettel creates it.
-      assertThat(ConfigurationLoader.load(withoutKey, environment()).zettelLocation()).isEqualTo(data.resolve("zettel"));
+      // Not required to exist: the first note written into a folder creates it.
+      Folders folders = ConfigurationLoader.load(rc, environment()).folders();
+
+      assertThat(folders.zettel()).isEqualTo(data.resolve("zettel"));
+      assertThat(folders.papers()).isEqualTo(data.resolve("papers"));
+      assertThat(folders.goals()).isEqualTo(data.resolve("goals"));
+      assertThat(folders.efforts()).isEqualTo(data.resolve("efforts"));
+      assertThat(folders.journal()).isEqualTo(data.resolve("journal"));
+      assertThat(folders.summaries()).isEqualTo(data.resolve("summaries"));
+   }
+
+   @Test
+   void foldersAreRelativeToDataLocationAndMayBeNested() throws IOException {
+      Path data = Files.createDirectories(home.resolve("cerebro"));
+      Path rc = write(home.resolve(".ztkrc"), """
+            data.location=%s
+            folder.zettel=notes/zettels
+            folder.papers=reading
+            """.formatted(data));
+
+      Folders folders = ConfigurationLoader.load(rc, environment()).folders();
+
+      assertThat(folders.zettel()).isEqualTo(data.resolve("notes/zettels"));
+      assertThat(folders.papers()).isEqualTo(data.resolve("reading"));
+      assertThat(folders.goals()).isEqualTo(data.resolve("goals"));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "/elsewhere/zettel", "../outside", "zettel/../../outside" })
+   void foldersOutsideDataLocationAreRejected(String folder) throws IOException {
+      Path data = Files.createDirectories(home.resolve("cerebro"));
+      Path rc = write(home.resolve(".ztkrc"), "data.location=" + data + "\nfolder.zettel=" + folder + "\n");
+
+      // Notes are only ever written inside the knowledge base, and node IDs are paths relative to it.
+      assertThatThrownBy(() -> ConfigurationLoader.load(rc, environment()))
+            .isInstanceOfSatisfying(ZtkException.class,
+                  e -> assertThat(e.exitCode()).isEqualTo(ZtkException.Kind.USAGE.exitCode()))
+            .hasMessageContaining("folder.zettel")
+            .hasMessageContaining(folder)
+            .hasMessageContaining("inside data.location")
+            .hasMessageContaining(rc.toString());
+   }
+
+   @Test
+   void twoKeysNamingTheSameFolderAreRejected() throws IOException {
+      Path data = Files.createDirectories(home.resolve("cerebro"));
+      // "./zettel" is the default zettel folder written differently: compared after normalizing.
+      Path rc = write(home.resolve(".ztkrc"), "data.location=" + data + "\nfolder.papers=./zettel\n");
+
+      // A note's type comes from its folder, so a folder shared by two keys has no single type.
+      assertThatThrownBy(() -> ConfigurationLoader.load(rc, environment()))
+            .isInstanceOfSatisfying(ZtkException.class,
+                  e -> assertThat(e.exitCode()).isEqualTo(ZtkException.Kind.USAGE.exitCode()))
+            .hasMessageContaining("folder.papers")
+            .hasMessageContaining("folder.zettel")
+            .hasMessageContaining(data.resolve("zettel").toString())
+            .hasMessageContaining("its own folder")
+            .hasMessageContaining(rc.toString());
    }
 
    @Test

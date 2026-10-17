@@ -58,7 +58,7 @@
 | `folder.journal` | `journal` | |
 | `folder.summaries` | `summaries` | |
 
-A `folder.*` value is a relative path, possibly nested (`notes/zettel`). A value that is absolute or resolves outside `data.location` (`..`), or two keys naming the same folder, is a configuration error (exit 1, naming the key). The first segment of each configured folder is reserved; any other top-level directory under `data.location` is a **project folder** (named after the Taskwarrior project). Hidden directories are ignored. An unknown key is a warning, not an error.
+A `folder.*` value is a relative path, possibly nested (`notes/zettel`). A value that is absolute or resolves outside `data.location` (`..`), or two keys naming the same folder, is a configuration error (exit 1, naming the key). The first segment of each configured folder is reserved; any other top-level directory under `data.location` is a **project folder** (named after the Taskwarrior project). Hidden directories are ignored. Unknown keys are ignored; `config show` prints the value in effect for every key.
 
 If no config file is found, or `data.location` is missing or not a directory, every command except `--help`, `config` and shell completion exits with code 1 and prints where it looked and a sample config. `ztk config show` prints the effective configuration and which file it came from.
 

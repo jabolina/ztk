@@ -1,5 +1,15 @@
 package io.github.jabolina.ztk.cli.commands;
 
+import static io.github.jabolina.ztk.configuration.ConfigurationLoader.DATA_LOCATION;
+import static io.github.jabolina.ztk.configuration.ConfigurationLoader.EDITOR;
+import static io.github.jabolina.ztk.configuration.ConfigurationLoader.FOLDER_EFFORTS;
+import static io.github.jabolina.ztk.configuration.ConfigurationLoader.FOLDER_GOALS;
+import static io.github.jabolina.ztk.configuration.ConfigurationLoader.FOLDER_JOURNAL;
+import static io.github.jabolina.ztk.configuration.ConfigurationLoader.FOLDER_PAPERS;
+import static io.github.jabolina.ztk.configuration.ConfigurationLoader.FOLDER_SUMMARIES;
+import static io.github.jabolina.ztk.configuration.ConfigurationLoader.FOLDER_ZETTEL;
+import static io.github.jabolina.ztk.configuration.ConfigurationLoader.TASK_COMMAND;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -10,6 +20,7 @@ import org.aesh.command.CommandResult;
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.configuration.Configuration;
+import io.github.jabolina.ztk.configuration.Folders;
 import tools.jackson.databind.node.ObjectNode;
 
 @CommandDefinition(name = "config", description = "Inspect the configuration", generateHelp = true,
@@ -43,14 +54,21 @@ public class ConfigCommand implements Command<ZtkInvocation> {
 
          // Insertion order is the display order.
          Map<String, String> values = new LinkedHashMap<>();
-         values.put("data.location", configuration.dataLocation().toString());
-         values.put("folder.zettel", configuration.zettelLocation().toString());
-         values.put("task.command", configuration.taskCommand());
+         values.put(DATA_LOCATION, configuration.dataLocation().toString());
+
+         Folders folders = configuration.folders();
+         values.put(FOLDER_ZETTEL, folders.zettel().toString());
+         values.put(FOLDER_PAPERS, folders.papers().toString());
+         values.put(FOLDER_GOALS, folders.goals().toString());
+         values.put(FOLDER_EFFORTS, folders.efforts().toString());
+         values.put(FOLDER_JOURNAL, folders.journal().toString());
+         values.put(FOLDER_SUMMARIES, folders.summaries().toString());
+         values.put(TASK_COMMAND, configuration.taskCommand());
 
          // Unset Taskwarrior paths are left out: Taskwarrior then uses its own defaults.
          configuration.taskRc().ifPresent(rc -> values.put("task.rc", rc.toString()));
          configuration.taskData().ifPresent(data -> values.put("task.data", data.toString()));
-         values.put("editor", configuration.editor());
+         values.put(EDITOR, configuration.editor());
 
          StringBuilder human = new StringBuilder("source: ").append(configuration.source()).append('\n');
          ObjectNode json = invocation.jsonResult();

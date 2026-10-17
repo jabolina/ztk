@@ -44,7 +44,7 @@ public final class Zettels {
       String uuid = UUID.randomUUID().toString();
       SequencedMap<String, String> fields = new LinkedHashMap<>();
       fields.put("uuid", uuid);
-      Path path = NoteFiles.create(configuration.zettelLocation(), title, OffsetDateTime.now(clock), fields, "# Notes\n\n");
+      Path path = NoteFiles.create(configuration.folders().zettel(), title, OffsetDateTime.now(clock), fields, "# Notes\n\n");
       return new Zettel(path, uuid);
    }
 }

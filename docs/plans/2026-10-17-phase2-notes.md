@@ -8,12 +8,12 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-17, design agreed)
+## Where we left off (2026-10-17, Task 1 done)
 
-Phase 2's design was settled in an interview on 2026-10-17; the spec and `docs/CONTEXT.md` hold the result. No Phase 2 code exists yet.
+Phase 2's design was settled in an interview on 2026-10-17; the spec and `docs/CONTEXT.md` hold the result. Task 1 is done: the six folders live in a `Folders` record on `Configuration`, always inside `data.location`; absolute, escaping and duplicate folders are rejected; unknown keys are ignored; `config show` lists every folder. The reserved first segments move to Task 2, where the reader uses them.
 
 **Next steps, in order:**
-1. Task 1 (folder configuration), TDD.
+1. Task 2 (`search`, reading the knowledge base), TDD. Open question: reject a folder nested inside another (`notes` and `notes/papers`)? Not done; the spec only rejects the same folder.
 
 **Working agreement:** TDD, one test at a time; Claude writes tests and snippets, the user writes production code and runs the tests. Commit once a whole command is done. Verify Æsh/Taskwarrior behavior in the scratchpad, never against real data. Real notes in `~/cerebro` are only read (surveys, final checks), never written; nothing about this work goes there.
 
@@ -33,7 +33,7 @@ Phase 2's design was settled in an interview on 2026-10-17; the spec and `docs/C
 
 Each task is one complete piece of functionality and ends with a commit.
 
-1. **Folder configuration.** The six keys with defaults; reject absolute and escaping values, and duplicates; reserved names; `config show` lists them; unknown keys warn. First test: an absolute `folder.zettel` is a configuration error.
+1. **Folder configuration.** The six keys with defaults; reject absolute and escaping values, and duplicates; reserved names; `config show` lists them; unknown keys are ignored. First test: an absolute `folder.zettel` is a configuration error.
 2. **`search`.** Brings in reading the knowledge base (walk, types, title, warnings). Tracer bullet: one word found in one note. Then AND across lines, phrase, snippets with line numbers, ordering, `--type`, `--project`, task of a task note, no-match exit 0, human table.
 3. **`paper new`.** Built-in template, PDF copy, target from `--venue`/`--year`/title, `pdf` field, existing target exit 3 with nothing written, `-e`. Papers in `search` results carry `pdf`.
 4. **`graph`.** Wikilink parsing (code skipped, `|`/`#`), resolution order, UUID links, `note`/`project` edges from the export, node ID input and its errors, hubs, `--depth`/`--type`/`--edges`, cap and `truncated`, dangling nodes, human table.

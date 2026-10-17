@@ -5,7 +5,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
@@ -20,12 +23,17 @@ import io.github.jabolina.ztk.ZtkException;
  */
 public final class ConfigurationLoader {
 
-   private static final String DATA_LOCATION = "data.location";
-   private static final String FOLDER_ZETTEL = "folder.zettel";
-   private static final String TASK_COMMAND = "task.command";
+   public static final String DATA_LOCATION = "data.location";
+   public static final String FOLDER_ZETTEL = "folder.zettel";
+   public static final String FOLDER_PAPERS = "folder.papers";
+   public static final String FOLDER_GOALS = "folder.goals";
+   public static final String FOLDER_EFFORTS = "folder.efforts";
+   public static final String FOLDER_JOURNAL = "folder.journal";
+   public static final String FOLDER_SUMMARIES = "folder.summaries";
+   public static final String TASK_COMMAND = "task.command";
+   public static final String EDITOR = "editor";
    private static final String TASK_RC = "task.rc";
    private static final String TASK_DATA = "task.data";
-   private static final String EDITOR = "editor";
    private static final String CONFIGURATION_SAMPLE = """
          # ~/.config/ztk/ztkrc
          data.location=~/cerebro
@@ -41,6 +49,9 @@ public final class ConfigurationLoader {
     * @return the parsed configuration.
     * @throws ZtkException with {@link ZtkException.Kind#USAGE} when the file cannot be read, or when
     *                      {@code data.location} is missing or is not an existing directory.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when the file cannot be read, when
+    *                      {@code data.location} is missing or is not an existing directory, or when a folder is not
+    *                      inside it.
     */
    public static Configuration load(Path explicit, Properties env) {
       Objects.requireNonNull(explicit, "Configuration path is missing");
@@ -54,9 +65,6 @@ public final class ConfigurationLoader {
       Path dataLocation = Path.of(dl).toAbsolutePath();
       requireDirectory(DATA_LOCATION, dataLocation, explicit);
 
-      // Folders are relative to the knowledge base, and created when the first note is written into them.
-      Path zettelLocation = dataLocation.resolve(loaded.getProperty(FOLDER_ZETTEL, "zettel")).toAbsolutePath();
-
       // Retrieve the attributes for TaskWarrior now.
       String taskCommand = loaded.getProperty(TASK_COMMAND, "task");
       Optional<Path> taskRc = Optional.ofNullable(loaded.getProperty(TASK_RC)).map(Path::of);
@@ -65,7 +73,17 @@ public final class ConfigurationLoader {
       // The configured editor wins; otherwise follow the usual $EDITOR convention, then a fixed fallback.
       String editor = loaded.getProperty(EDITOR, env.getProperty("EDITOR", "nvim"));
 
-      return new Configuration(explicit, dataLocation, zettelLocation, taskCommand, taskRc, taskData, editor);
+      // Folders are relative to the knowledge base, and created when the first note is written into them.
+      Folders folders = new Folders(
+            folder(loaded, FOLDER_ZETTEL, "zettel", dataLocation, explicit),
+            folder(loaded, FOLDER_PAPERS, "papers", dataLocation, explicit),
+            folder(loaded, FOLDER_GOALS, "goals", dataLocation, explicit),
+            folder(loaded, FOLDER_EFFORTS, "efforts", dataLocation, explicit),
+            folder(loaded, FOLDER_JOURNAL, "journal", dataLocation, explicit),
+            folder(loaded, FOLDER_SUMMARIES, "summaries", dataLocation, explicit)
+      );
+      requireDistinct(folders, explicit);
+      return new Configuration(explicit, dataLocation, folders, taskCommand, taskRc, taskData, editor);
    }
 
    /**
@@ -187,6 +205,62 @@ public final class ConfigurationLoader {
    private static void requireDirectory(String property, Path directory, Path source) {
       if (!Files.isDirectory(directory)) {
          throw ZtkException.usage(property + " is not a directory: " + directory + " (from " + source + ")");
+      }
+   }
+
+   /**
+    * Resolves a configured folder inside the knowledge base.
+    *
+    * <p>
+    * The value is a path relative to {@code data.location}, possibly nested. The folder does not need to exist: the
+    * first note written into it creates it.
+    * </p>
+    *
+    * @param loaded the configuration values.
+    * @param property the configuration key holding the folder, e.g. {@code folder.zettel}.
+    * @param defaultValue the folder used when the key is not set.
+    * @param dataLocation the root of the knowledge base.
+    * @param source the configuration file the value was read from, reported in the error message.
+    * @return the absolute, normalized folder path, inside {@code dataLocation}.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when the value is absolute or leaves the knowledge base.
+    */
+   private static Path folder(Properties loaded, String property, String defaultValue, Path dataLocation, Path source) {
+      String value = loaded.getProperty(property, defaultValue);
+      // Path.resolve returns an absolute argument unchanged, and ".." is only removed by normalize(): check the
+      // normalized result, so "/elsewhere" and "zettel/../../outside" are both caught.
+      Path folder = dataLocation.resolve(value).normalize();
+      if (!folder.startsWith(dataLocation) || folder.equals(dataLocation)) {
+         throw ZtkException.usage(property + " must be a folder inside data.location, e.g. " + property + "="
+               + defaultValue + ": " + value + " (from " + source + ")");
+      }
+      return folder;
+   }
+
+   /**
+    * Ensures no two folder keys name the same folder.
+    *
+    * @param folders the resolved folders.
+    * @param source the configuration file the folders were read from, reported in the error message.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when two keys resolve to the same folder.
+    */
+   private static void requireDistinct(Folders folders, Path source) {
+      // Insertion order keeps the error stable: the later key is reported as the one to change.
+      Map<String, Path> folderByKey = new LinkedHashMap<>();
+      folderByKey.put(FOLDER_ZETTEL, folders.zettel());
+      folderByKey.put(FOLDER_PAPERS, folders.papers());
+      folderByKey.put(FOLDER_GOALS, folders.goals());
+      folderByKey.put(FOLDER_EFFORTS, folders.efforts());
+      folderByKey.put(FOLDER_JOURNAL, folders.journal());
+      folderByKey.put(FOLDER_SUMMARIES, folders.summaries());
+
+      // Paths are already normalized by folder(), so equal folders are equal paths.
+      Map<Path, String> keyByFolder = new HashMap<>();
+      for (Map.Entry<String, Path> entry : folderByKey.entrySet()) {
+         String previous = keyByFolder.putIfAbsent(entry.getValue(), entry.getKey());
+         if (previous != null) {
+            throw ZtkException.usage(entry.getKey() + " names the same folder as " + previous + ": "
+                  + entry.getValue() + ". Give " + entry.getKey() + " its own folder (from " + source + ")");
+         }
       }
    }
 }

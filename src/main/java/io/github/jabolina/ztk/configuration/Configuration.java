@@ -8,7 +8,7 @@ import java.util.Optional;
  *
  * @param source         The file the configuration was read from.
  * @param dataLocation   The root of the knowledge base.
- * @param zettelLocation The folder for zettels, inside the knowledge base unless configured as an absolute path.
+ * @param folders        The folders of the knowledge base, all inside {@code dataLocation}.
  * @param taskCommand    The Taskwarrior executable to run.
  * @param taskRc         The Taskwarrior configuration file to use instead of the user's default, if set.
  * @param taskData       The Taskwarrior data directory to use instead of the user's default, if set.
@@ -17,7 +17,7 @@ import java.util.Optional;
 public record Configuration(
       Path source,
       Path dataLocation,
-      Path zettelLocation,
+      Folders folders,
       String taskCommand,
       Optional<Path> taskRc,
       Optional<Path> taskData,

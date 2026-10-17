@@ -51,14 +51,14 @@
 | `task.rc` | *(unset)* | If set, exported as `TASKRC` to every `task` invocation. |
 | `task.data` | *(unset)* | If set, exported as `TASKDATA` to every `task` invocation. |
 | `editor` | `$EDITOR`, then `nvim` | Editor for interactive commands. |
-| `folder.zettel` | `zettel` | Folders are relative to `data.location`. |
+| `folder.zettel` | `zettel` | Folders are always inside `data.location` (see below). |
 | `folder.papers` | `papers` | |
 | `folder.goals` | `goals` | |
 | `folder.efforts` | `efforts` | |
 | `folder.journal` | `journal` | |
 | `folder.summaries` | `summaries` | |
 
-Any other top-level directory under `data.location` is a **project folder** (named after the Taskwarrior project). Hidden directories are ignored.
+A `folder.*` value is a relative path, possibly nested (`notes/zettel`). A value that is absolute or resolves outside `data.location` (`..`), or two keys naming the same folder, is a configuration error (exit 1, naming the key). The first segment of each configured folder is reserved; any other top-level directory under `data.location` is a **project folder** (named after the Taskwarrior project). Hidden directories are ignored. An unknown key is a warning, not an error.
 
 If no config file is found, or `data.location` is missing or not a directory, every command except `--help`, `config` and shell completion exits with code 1 and prints where it looked and a sample config. `ztk config show` prints the effective configuration and which file it came from.
 
@@ -78,7 +78,7 @@ efforts/
   infinijepsen-demo.md                     # effort
 <Project>/                                 # task notes (unchanged)
   20260526-....md
-papers/<venue>/<year>/<name>.md            # paper notes next to PDFs (unchanged)
+papers/<venue>/<year>/<slug>.{pdf,md}      # PDF and its paper note, filed by `paper new`
 zettel/                                    # standalone knowledge notes
   20260204-causality.md
 journal/
@@ -96,8 +96,8 @@ summaries/
 | Effort | `efforts/<slug>.md` | `<slug>` | frontmatter `goal: YYYY-Qq-Gn` (optional), `status`, `quarter` |
 | Task | Taskwarrior | id / uuid | `project` (required), UDA `effort` (optional), UDA `note` |
 | Task note | `<Project>/*.md` | path | frontmatter `task_uuid` |
-| Zettel | `zettel/*.md` | path | `tags`, `[[links]]` |
-| Paper | `papers/**/*.md` | path | `tags`, `venue`, `authors`, `[[links]]` |
+| Zettel | `zettel/*.md` | path | `[[links]]` |
+| Paper | `papers/**/*.md` | path | `venue`, `authors`, `pdf` (relative to the note), `[[links]]` |
 | Session | section in `journal/YYYY-MM-DD.md` | `YYYY-MM-DD#n` | task uuid, title, summary |
 
 Goal numbers (`Gn`) are allocated sequentially per year (yearly) or per quarter (quarterly). Slugs are lowercase `[a-z0-9-]`; goal file slugs are derived from `--title` (lowercased, non-alphanumerics collapsed to `-`, max 60 chars) unless `--slug` is given. Effort slugs are given explicitly.
@@ -117,16 +117,18 @@ Without the definition, Taskwarrior treats `note:x` as description text (`modify
 
 ### 4.4 Note types
 
-Type is inferred from location; existing notes need no frontmatter edits:
+Type is inferred from location only, never from file names; existing notes need no frontmatter edits. ztk reads every `.md` under `data.location`, in every subfolder, skipping hidden directories and `AGENTS.md`/`CLAUDE.md` anywhere (instructions for agents, not knowledge). A note with malformed frontmatter or that cannot be read is skipped with a warning.
 
 - under `folder.goals` → goal (yearly or quarterly by depth)
 - under `folder.efforts` → effort
-- under `folder.papers` → paper (any `.md` except `TEMPLATE.md` and `CLAUDE.md`)
+- under `folder.papers` → paper (any `.md` except the legacy `TEMPLATE.md`)
 - under `folder.zettel` → zettel
 - under `folder.journal` → journal
 - under `folder.summaries` → summary
 - under a project folder → task note if it has `task_uuid`, otherwise a project note
-- root-level `.md` files → `other` (indexed and searchable, but not typed further)
+- root-level `.md` files → `other` (indexed and searchable, but not typed further). This includes the bash tool's `progress*.md` and `Weekly-Status-*.md` until the migration moves them (§9).
+
+Tags are not a ztk concept: projects and efforts group work, and a zettel linking the notes of one topic (a structure note) groups knowledge. A `tags` frontmatter field in an existing note is left alone and not read.
 
 ### 4.5 Templates
 
@@ -156,7 +158,7 @@ Effort note body:
 
 Content between `ztk:begin`/`ztk:end` markers is generated and rewritten by `ztk` (for example by `effort show --refresh`, `goal tree --refresh`, and any command that links a task or effort). Everything outside the markers belongs to the user or agent and is never modified.
 
-Task-note, zettel and paper templates keep their current shape (paper uses `papers/TEMPLATE.md`).
+Task-note, zettel and paper templates are built into ztk, with no user override. The paper template is based on the user's `papers/TEMPLATE.md` (frontmatter `title`, `authors`, `venue`, `link`, `date_read`, `pdf`, then the same eight sections with their italic guidance); fields not given are left empty instead of holding placeholders. `papers/TEMPLATE.md` becomes a leftover.
 
 ### 4.6 Journal format
 
@@ -169,27 +171,31 @@ Short summary, a few lines: what was done, where things are, what is next.
 
 ## 5. Graph and cross-referencing
 
-Every entity is a node with a uniform ID:
+Every entity is a node with a uniform ID. JSON always prints the canonical form: `task:<uuid>` (full UUID, since numeric IDs change), `note:<path relative to data.location, without .md>`, `project:<name>`, `effort:<slug>`, `goal:<YYYY-Gn|YYYY-Qq-Gn>`.
 
-`task:<id|uuid>`, `effort:<slug>`, `goal:<YYYY-Gn|YYYY-Qq-Gn>`, `note:<path-without-.md>`, `project:<name>`.
+As input, commands accept the canonical forms plus `task:<id|short-uuid>`, a bare number (a task) and `note:<name>` or a bare name (a note, resolved like a wikilink written at the root). A name matching several notes exits 3 listing their canonical IDs; a name matching none exits 2. File paths are not accepted: JSON carries the ID next to every path.
 
-Commands accept these IDs; bare task numbers are accepted where a task is expected.
+**Wikilinks:** `[[target]]` outside fenced code blocks (```` ``` ````/`~~~`) and inline code spans. The target is the text before any `|` or `#`, trimmed, and matches a note's file name without `.md`, exactly and case-sensitively. Frontmatter is not scanned. Resolution, in order:
+
+1. A note of that name in the linking note's own folder: that note only.
+2. Otherwise every note of that name; more than one is an **ambiguous link** (reported by `check`).
+3. Otherwise, a target shaped as a full or 8-hex short task UUID resolves to that task (any status except deleted).
+4. Otherwise a **dangling link**: kept, shown by `graph`, reported by `check`.
 
 **Edges** (all derived; nothing extra is maintained by hand):
 
 | Edge | Source |
 |---|---|
-| note ↔ note | `[[wikilinks]]`, indexed in both directions (links + backlinks) |
-| task ↔ task note | UDA `note`, with frontmatter `task_uuid` as fallback |
+| note ↔ note, note → task (`link`) | `[[wikilinks]]`, indexed in both directions (links + backlinks) |
+| task ↔ task note (`note`) | UDA `note`, with frontmatter `task_uuid` as fallback |
+| task → project (`project`) | Taskwarrior `project` |
 | task → effort | UDA `effort` |
 | effort → quarterly goal → yearly goal | frontmatter `goal`, `parent` |
-| task → project | Taskwarrior `project` |
 | goal/effort note ↔ any note | `[[wikilinks]]` in their bodies |
-| note ~ note (weak) | shared `tags` |
 
-Wikilinks resolve by file name (without `.md`) across all folders, matching Telekasten. A name matching more than one file is reported by `ztk check` and resolves to all matches.
+ztk writes no links into existing notes: users and agents write wikilinks with their own tools.
 
-The graph is built in memory per invocation by reading the notes plus one `task export`. A persistent cache may be added only if measured latency calls for it (target: under 300 ms for `graph`/`search` on about 1,000 notes, native build).
+The graph is built in memory per invocation by reading the notes (in parallel, on virtual threads) plus one `task export` of non-deleted tasks, run concurrently. `search` never calls Taskwarrior. A persistent cache may be added only if measured latency calls for it (target: under 300 ms for `graph`/`search` on about 1,000 notes, native build).
 
 ## 6. Commands
 
@@ -224,7 +230,7 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 |---|---|
 | `new <title…> [--editor]` | Creates a zettel in `folder.zettel` (`<YYYYMMDD>-<slug>.md`, frontmatter `title`, ISO `date`, `uuid`, then `# Notes`) and prints its path (JSON: `path`, `uuid`). The words form the title. A title already used that day gets a numbered file (`-2.md`); nothing is overwritten. `--editor`/`-e` also opens it, and fails before writing outside an interactive session. No title-less Telekasten mode (use `nvim -c "Telekasten new_note"`). |
 | ~~`note`/`open`, `cat`~~ | Dropped: `cat` dumps a whole note, while a path lets agents read a range, grep or edit with their own tools; `note` is a human shortcut for `$EDITOR "$(ztk info N | jq -r .note)"` or `ztk start N -e`. |
-| `paper new <pdf-path> --title … [--venue …] [--tags …]` | Create a reading note next to the PDF from `papers/TEMPLATE.md`. |
+| `paper new <pdf> --title … [--venue …] [--year …] [--authors …] [--link …] [--editor]` | Copies the PDF (any path) to `papers/<venue or others>/<year, default current>/<slug-of-title>.pdf` and creates the paper note `<slug>.md` next to it from the built-in template, with `date_read` today and `pdf: <slug>.pdf`. Never moves or deletes the original. An existing PDF or note at the target exits 3 before anything is written. Prints the note path (JSON: `id`, `path`, `pdf`). `--editor`/`-e` as for `new`. |
 
 **Goals and efforts**
 
@@ -246,9 +252,8 @@ All create/update commands are non-interactive when given their flags, so agents
 
 | Command | Behavior |
 |---|---|
-| `graph <node> [--depth N] [--type t1,t2] [--edges e1,e2]` | Neighborhood of a node. Each result includes the edge path from the start node. Default depth 2. |
-| `search <text> [--type …] [--project …] [--tag …]` | Case-insensitive full-text search across notes; returns node IDs and line snippets. |
-| `link <nodeA> <nodeB>` | Adds `[[B]]` under a `## Related` section of A (creating the section if absent). Both must be notes, or a task (resolved to its note). |
+| `graph <node> [--depth N] [--type t1,t2] [--edges e1,e2] [--limit N]` | Neighborhood of a node, for agents first. Edges `link` (with `direction` out/in), `note`, `project`. Breadth-first, default depth 2; each node once, at its shortest depth, with the edge path from the start. Projects are hubs: reached but not expanded unless they are the start node. Dangling links are shown, never expanded. `--type`/`--edges` restrict the walk itself. JSON: flat `nodes` list ordered by depth, each with `id`, `type`, `title`, absolute `path` (a task's note path; `pdf` for papers), `status` for tasks, `depth`, `path` of edges. At most 50 nodes by default (`--limit`); a cut sets `truncated: true` with a hint to narrow. Human: a plain table. |
+| `search <words…> [--type …] [--project …]` | Notes containing every word (case-insensitive, anywhere in the note); `"quoted words"` match a phrase. No regex, no fuzzy matching (compose with `fzf` over the JSON). Searches the body and the frontmatter `title`. JSON per note: `id`, `path`, `type`, `title`, `task` for task notes (from `task_uuid`), `pdf` for papers, up to 3 matching lines with line numbers. Order: title matches, then number of matching lines, then newest. `--type` (comma-separated or repeated), `--project` (that project folder). No match exits 0 with an empty list. |
 | `context <task>` | One bundle sized for an agent: task attributes, effort and goal chain, note path plus its last `# Claude Summary` section, last 3 sessions for the task, and directly linked notes (titles + paths). |
 
 **Sessions**
@@ -263,7 +268,7 @@ All create/update commands are non-interactive when given their flags, so agents
 | Command | Behavior |
 |---|---|
 | `summary <week\|YYYY-Www\|YYYY-Qq\|YYYY>` or `summary --since <date\|duration>` | For the period (see §6.3): per quarterly goal → efforts → tasks completed and in progress (with dates and note paths); carried-over efforts; per project, "General work" (effort-less tasks); review queue. Yearly summaries group quarters under their yearly goals. `--write` saves the rendered Markdown to `summaries/<period>.md` and prints its path; it never overwrites an existing file without `--force`. |
-| `check` | Broken links, ambiguous link names, unknown efforts/goals, quarterly goals without valid parent, tasks without project, task notes whose `task_uuid` matches no task, tasks whose `note` points to a missing file. Exit 3 if any errors. |
+| `check [--kind …] [--project …]` | Errors (exit 3 if any): `dangling-link`, `missing-note` (a task's `note` points to a missing file), `task-without-project` (pending and waiting tasks only). Warnings (exit 0): `orphan-task-note` (`task_uuid` matches no task), `ambiguous-link`, `unreadable-note`. Phase 3 adds unknown efforts/goals and quarterly goals without a valid parent. Each problem: `kind`, `severity`, node ID, path, line (for links), message, hint. Read-only, with no `--fix`: users and agents fix what it reports. Human: a table. |
 
 **Maintenance**
 
@@ -285,7 +290,7 @@ All create/update commands are non-interactive when given their flags, so agents
 
 ### 6.4 Retired commands
 
-**Retired / aliased:** `report-file [time]` → alias of `summary week --write` with no argument, or `summary --since <time> --write` with one. It prints the written file's path, as today, and is deprecated (removed after one release). Output moves from root `Weekly-Status-YYYY-WW.md` to `summaries/YYYY-Www.md`; the existing `Weekly-Status-*.md` files stay where they are as archives. `setup` → README. `000-Project-Index.md` is no longer generated; `goal tree`, `graph` and `search` replace it.
+**Retired / aliased:** `report-file [time]` → alias of `summary week --write` with no argument, or `summary --since <time> --write` with one. It prints the written file's path, as today, and is deprecated (removed after one release). Output moves from root `Weekly-Status-YYYY-WW.md` to `summaries/YYYY-Www.md`; the existing `Weekly-Status-*.md` files are moved by the migration (§9). `setup` → README. `000-Project-Index.md` is no longer generated and the user deletes it; `goal tree`, `graph` and `search` replace it.
 
 ## 7. Architecture
 
@@ -295,14 +300,14 @@ Maven project, Java 25, GraalVM native-image profile.
 |---|---|---|
 | `config` | Locate, parse and validate the config file. | `Config.load(args, env)` |
 | `taskwarrior` | The **only** code that runs `task`. JSON → `Task` records; writes via `add`/`modify`/`start`/`stop`/`done`; ensures UDAs. Applies `task.rc`/`task.data`. | `TaskStore.query(filter)`, `add(…)`, `modify(ref, changes)`, `start/stop/done(ref)` |
-| `vault` | Read/write notes under `data.location`: frontmatter, wikilinks, type inference, templates, managed sections, atomic writes. | `Vault.load()`, `note(id)`, `create(type, …)`, `updateManagedSection(note, name, content)`, `appendSection(note, heading, text)` |
-| `graph` | Build the typed graph from `Vault` + `TaskStore`; traversal with edge paths. | `Graph.build(vault, tasks)`, `neighbors(node, depth, filters)` |
-| `search` | Full-text search over vault notes. | `Search.find(query, filters)` |
+| `notes` | Read and create notes under `data.location`: walk, frontmatter, wikilinks, type inference, built-in templates, managed sections, atomic writes. No Taskwarrior. | `KnowledgeBase.load()` → notes, `Zettels`, `Papers` |
+| `graph` | Build the typed graph from the `KnowledgeBase` + `TaskStore`: link resolution, node ID input, traversal with edge paths. | `Graph.build(knowledgeBase, tasks)`, `neighbors(node, depth, filters)` |
+| `search` | Word and phrase search over the notes. | `Search.find(query, filters)` |
 | `planning` | Goals/efforts: ID allocation, validation, tree. | `Planning.newGoal(…)`, `newEffort(…)`, `tree(year)` |
 | `reports` | `summary`, `recent`, `context`, `check` as pure functions returning models. | `Summary.of(period)` → `SummaryModel` |
 | `cli` | Æsh commands, argument guard, completers, `Renderer` (human/JSON). Commands return models; only the renderer prints. | — |
 
-Dependencies point downward: `cli → reports/planning/graph/search → vault/taskwarrior → config`.
+Dependencies point downward: `cli → reports/planning/graph/search → notes/taskwarrior → configuration`. The table is a sketch; classes are decided during development.
 
 ### 7.1 Taskwarrior integration
 
@@ -316,7 +321,7 @@ Dependencies point downward: `cli → reports/planning/graph/search → vault/ta
 Æsh generates the shell script: `ztk --aesh-completion zsh|bash|fish`. For zsh it is an autoload file saved as `_ztk` on `fpath`. On every Tab the script calls `ztk --aesh-complete -- <words>`.
 
 - Æsh completes subcommands and options.
-- ztk completers compute argument values from Taskwarrior as configured for ztk: task IDs (`start`, `review`, `done`, `info`), `project:` and `+tag` attributes (`add`), project names (`list`, `week`). Later phases add node IDs, effort slugs, goal IDs and note names the same way.
+- ztk completers compute argument values from Taskwarrior as configured for ztk: task IDs (`start`, `review`, `done`, `info`), `project:` and `+tag` attributes (`add`), project names (`list`, `week`). `graph` completes note names from file names alone (no parsing; a name in several folders is offered folder-qualified), pending task IDs and `project:` names; `--type`, `--edges`, `--kind` offer fixed lists, `--project` project names, with comma lists completed after the last comma. Later phases add effort slugs and goal IDs the same way.
 - Completers receive the invocation's context through a ztk completer invocation. A failure, such as a missing configuration, gives no candidates and no message.
 - Completed arguments disable Æsh's file fallback, so the shell does not offer file names next to the values. Commands without positional arguments still get it: Æsh offers no way to turn it off there.
 
@@ -339,9 +344,9 @@ Runs idempotently; `--dry-run` prints every change without making it.
 1. For each task without a `note` UDA: find a note with matching `task_uuid` and set `note`.
 2. Move root-level zettels (`.md` with a `uuid` frontmatter and no `task_uuid`, excluding known files such as `progress*.md`, `AGENTS.md`, `CLAUDE.md`, `Weekly-Status-*.md`, `000-Project-Index.md`) into `folder.zettel`.
 3. Report task projects that differ only by case (e.g. `infinispan` vs `Infinispan`) for manual fixing; never change them automatically.
-4. Leave `progress*.md`, `Weekly-Status-*.md` and `000-Project-Index.md` in place as archives.
+4. Move `Weekly-Status-YYYY-WW.md` to `summaries/YYYY-Www.md` (rename only) and `progress*.md` into `journal/` (open: split their `## YYYY-MM-DD: Project -- Title` entries into sessions, or move the files as they are).
 
-Wikilinks resolve by name, so moving files does not change link text. Before running step 3 for real, verify that Telekasten in nvim follows a bare-name link to a file in a subfolder (task notes in project subfolders are already linked this way from `000-Project-Index.md`), and point Telekasten's new-note location at `zettel/`.
+Wikilinks resolve by name, so moving files does not change link text. Before running step 3 for real, verify that Telekasten in nvim follows a bare-name link to a file in a subfolder (task notes in project subfolders are already linked this way), check which file it opens for a name present in several folders (ztk prefers the linking note's folder, §5),, and point Telekasten's new-note location at `zettel/`.
 
 ## 10. Agent integration (bundled skills)
 
@@ -349,8 +354,9 @@ Repository `skills/` folder, installed with `ztk install-skills`:
 
 | Skill | Purpose |
 |---|---|
-| `ztk` | Everyday agent usage: `recent` at session start, `context`, `add` (prints the new task's note path)/`info` (a task's note path), `session add` at session end, `graph`/`search` for lookups, never run editor commands. Replaces `~/.claude/skills/ztk`. |
+| `ztk` | Everyday agent usage: `recent` at session start, `context`, writing `[[wikilinks]]` into notes with its own tools, `add` (prints the new task's note path)/`info` (a task's note path), `session add` at session end, `graph`/`search` for lookups, never run editor commands. Replaces `~/.claude/skills/ztk`. |
 | `ztk-planning` | Collaborative goal → effort → task flow: read `goal tree` + last quarter's `summary`; brainstorm one goal at a time with the user; create it with `goal new`, then write Why / What done looks like together; propose efforts one at a time, creating each only after agreement and writing its note; break an effort into tasks (`add … --effort`) only after its note is agreed. The agent never creates goals or efforts without the user's explicit agreement. |
+| `ztk-papers` | Reading flow: `paper new` files the PDF and note; the agent reads the PDF, writes the summary into the note, extracts atomic zettels (`new`) that link back to the paper, and links them from the task notes that apply them. |
 | `ztk-summary` | Expand `summary <period> --json` into a narrative for weekly/quarterly/yearly reviews, using only gathered facts, then save with `summary --write` or edit the written file. Replaces `weekly-summary`. |
 
 Also shipped: an `AGENTS.md` template for `data.location` whose startup instruction is `ztk recent` instead of reading `progress.md`.
@@ -361,7 +367,7 @@ Also shipped: an `AGENTS.md` template for `data.location` whose startup instruct
 - **Integration:** against the real `task` binary with `task.rc`/`task.data` pointing to a temp directory. Never touches the user's data; tests fail if `TASKRC`/`TASKDATA` would resolve to the real files.
 - **Golden files:** JSON output of every read command. Shape changes require updating goldens and bumping `schema` if incompatible.
 - **CLI:** argument guard (`--help`, unknown flags have no side effects), exit codes, non-TTY editor refusal, and path-result commands printing a bare path on stdout in both TTY and non-TTY mode with human messages on stderr.
-- **Native smoke test** (`-Pnative`): build the binary, run `help`, `__complete`, `recent`, `graph` on the fixture vault, and assert latency targets.
+- **Native smoke test** (`-Pnative`): build the binary, run `help`, completion, `search`, `graph`, `check` on a scratch knowledge base, and assert latency targets (completion under 50 ms; `search`/`graph` under 300 ms on a generated 1,000-note knowledge base).
 
 ## 12. Rollout
 
@@ -375,5 +381,7 @@ Suggested build phases for the plan: (1) config + Taskwarrior + task commands, (
 
 ## 13. Open items
 
-- Æsh vs Picocli: decided by the spike (§7.2).
+- Æsh vs Picocli: decided by the spike: Æsh.
 - Persistent graph cache: only if the latency targets in §5 are missed.
+- `progress*.md` migration: split into sessions or move as is (§9), decided in the migration phase.
+- Telekasten's choice among same-named notes in different folders, to compare with §5's same-folder rule.

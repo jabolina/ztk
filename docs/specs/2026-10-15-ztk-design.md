@@ -34,7 +34,7 @@
 | Session log | Sessions are data (`journal/`), each with a short summary; `ztk recent` replaces reading `progress.md`. |
 | Storage | Approach A: goals, efforts, sessions as Markdown; task relations as Taskwarrior UDAs; no duplicate index. |
 | Stack | Java 25, Æsh for commands, Jackson for JSON, `task` CLI via `ProcessBuilder`, Maven, GraalVM native image from day one. No FFM. |
-| Completion | Bash completion script emitted by `ztk`; ztk words via hidden `ztk __complete`; Taskwarrior pass-through args delegated to Taskwarrior's own bash completion. |
+| Completion | Computed by ztk in Java and served through Æsh's `--aesh-complete`, so Æsh's generated script works in every shell it supports (bash, zsh, fish). No ztk-written shell script. |
 
 ## 3. Configuration
 
@@ -60,7 +60,7 @@
 
 Any other top-level directory under `data.location` is a **project folder** (named after the Taskwarrior project). Hidden directories are ignored.
 
-If no config file is found, or `data.location` is missing or not a directory, every command except `help`, `completion` and `config` exits with code 1 and prints where it looked and a sample config. `ztk config show` prints the effective configuration and which file it came from.
+If no config file is found, or `data.location` is missing or not a directory, every command except `--help`, `config` and shell completion exits with code 1 and prints where it looked and a sample config. `ztk config show` prints the effective configuration and which file it came from.
 
 `task.rc`/`task.data` let tests and alternative setups run fully isolated from the user's real Taskwarrior data.
 
@@ -270,7 +270,6 @@ All create/update commands are non-interactive when given their flags, so agents
 | Command | Behavior |
 |---|---|
 | `migrate [--dry-run]` | See §9. |
-| `completion bash` | Prints the bash completion script. |
 | `install-skills [--target DIR]` | Symlinks `skills/*` into `~/.claude/skills/` (default). |
 | `config show` | Effective configuration. |
 | `help [command]`, `<command> --help` | Usage. |
@@ -301,7 +300,7 @@ Maven project, Java 25, GraalVM native-image profile.
 | `search` | Full-text search over vault notes. | `Search.find(query, filters)` |
 | `planning` | Goals/efforts: ID allocation, validation, tree. | `Planning.newGoal(…)`, `newEffort(…)`, `tree(year)` |
 | `reports` | `summary`, `recent`, `context`, `check` as pure functions returning models. | `Summary.of(period)` → `SummaryModel` |
-| `cli` | Æsh commands, argument guard, completion (`__complete`, `completion bash`), `Renderer` (human/JSON). Commands return models; only the renderer prints. | — |
+| `cli` | Æsh commands, argument guard, completers, `Renderer` (human/JSON). Commands return models; only the renderer prints. | — |
 
 Dependencies point downward: `cli → reports/planning/graph/search → vault/taskwarrior → config`.
 
@@ -309,17 +308,19 @@ Dependencies point downward: `cli → reports/planning/graph/search → vault/ta
 
 - Reads: `task rc.verbose=nothing rc.json.array=on <filter> export`, parsed with Jackson.
 - Writes: `task rc.confirmation=off rc.verbose=nothing <ref> <command> <args>`; args passed as a list, never through a shell.
-- Completion data: `task _projects`, `task _tags`, `task _ids`.
+- Completion data: `task _ids`, `task _projects`, and the tags of the open tasks (`task _tags` also lists Taskwarrior's virtual tags, which cannot be added).
 - Requires Taskwarrior ≥ 3.0; `ztk` checks `task --version` on first use per invocation and exits 4 with a clear message otherwise.
 
-### 7.2 Bash completion
+### 7.2 Shell completion
 
-`ztk completion bash` prints a function registered with `complete -F`. It:
+Æsh generates the shell script: `ztk --aesh-completion zsh|bash|fish`. For zsh it is an autoload file saved as `_ztk` on `fpath`. On every Tab the script calls `ztk --aesh-complete -- <words>`.
 
-1. Calls `ztk __complete <cword> <words…>`, which returns candidates for ztk subcommands, options, node IDs, effort slugs, goal IDs, note names, and task IDs.
-2. If `__complete` answers with the sentinel `@taskwarrior`, which it does for positions that pass through to Taskwarrior (e.g. attributes after `ztk add <desc>`, filters after `ztk list`), it rewrites `COMP_WORDS` to the equivalent `task …` command and calls Taskwarrior's bash completion function, if loaded.
+- Æsh completes subcommands and options.
+- ztk completers compute argument values from Taskwarrior as configured for ztk: task IDs (`start`, `review`, `done`, `info`), `project:` and `+tag` attributes (`add`), project names (`list`, `week`). Later phases add node IDs, effort slugs, goal IDs and note names the same way.
+- Completers receive the invocation's context through a ztk completer invocation. A failure, such as a missing configuration, gives no candidates and no message.
+- Completed arguments disable Æsh's file fallback, so the shell does not offer file names next to the values. Commands without positional arguments still get it: Æsh offers no way to turn it off there.
 
-The native binary keeps per-Tab latency low; the target is under 50 ms per `__complete` call.
+The native binary keeps per-Tab latency low; the target is under 50 ms per call (measured: ~2 ms for subcommands, ~13 ms for task IDs).
 
 **Spike first:** confirm Æsh can parse commands without starting its interactive console and works under native image. If not, switch the command layer to Picocli; the rest of the design is unchanged.
 
@@ -370,7 +371,7 @@ Also shipped: an `AGENTS.md` template for `data.location` whose startup instruct
 4. Update skills and `AGENTS.md`; install the skills.
 5. Once the new tool matches the old one, install the binary as `ztk`, rename the bash script to `ztk.sh`, and keep it for one release cycle.
 
-Suggested build phases for the plan: (1) config + Taskwarrior + task commands, (2) vault + graph + search + notes, (3) goals/efforts, (4) sessions + reports, (5) migration + skills + completion polish.
+Suggested build phases for the plan: (1) config + Taskwarrior + task commands, (2) vault + graph + search + notes, (3) goals/efforts, (4) sessions + reports, (5) migration + skills.
 
 ## 13. Open items
 

@@ -119,7 +119,10 @@ public final class TaskStore {
       // A bare ID or UUID is a valid Taskwarrior filter matching at most one task.
       List<Task> tasks = query(reference);
       if (tasks.isEmpty()) {
-         throw ZtkException.notFound("Task " + reference + " not found.");
+         // Completed and deleted tasks lose their ID, so only their UUID still finds them.
+         throw ZtkException.notFound("Task " + reference + " not found."
+               + System.lineSeparator()
+               + "Run 'ztk list' to see the pending tasks and their IDs, or use the task UUID.");
       }
       return tasks.getFirst();
    }

@@ -1,6 +1,5 @@
 package io.github.jabolina.ztk.cli.commands;
 
-import java.nio.file.Path;
 import java.util.List;
 
 import org.aesh.command.Command;
@@ -38,20 +37,7 @@ public class CurrentCommand implements Command<ZtkInvocation> {
       // In theory, manipulating tasks outside ztk could allow multiple active tasks.
       List<Task> active = invocation.context().tasks().current();
       for (Task task : active) {
-         human.append(task.label()).append(System.lineSeparator());
-         ObjectNode entry = task.writeJson(tasks.addObject());
-
-         if (task.note().isPresent()) {
-            Path note = invocation.context().configuration().dataLocation().resolve(task.note().get());
-            human.append("  Note: ").append(note).append(System.lineSeparator());
-            entry.put("note", note.toString());
-         } else {
-            // Started outside ztk.
-            // Starting it again through ztk creates or links the note file.
-            human.append("  No note. Run 'ztk start ").append(task.id()).append("' to create or link it.")
-                  .append(System.lineSeparator());
-            entry.putNull("note");
-         }
+         InfoCommand.describe(invocation, task, human, task.writeJson(tasks.addObject()));
       }
       if (active.isEmpty()) {
          human.append("No task is active. Run 'ztk start <id>' to start one.").append(System.lineSeparator());

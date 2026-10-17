@@ -21,6 +21,7 @@ import io.github.jabolina.ztk.ZtkException;
 public final class ConfigurationLoader {
 
    private static final String DATA_LOCATION = "data.location";
+   private static final String FOLDER_ZETTEL = "folder.zettel";
    private static final String TASK_COMMAND = "task.command";
    private static final String TASK_RC = "task.rc";
    private static final String TASK_DATA = "task.data";
@@ -53,6 +54,9 @@ public final class ConfigurationLoader {
       Path dataLocation = Path.of(dl).toAbsolutePath();
       requireDirectory(DATA_LOCATION, dataLocation, explicit);
 
+      // Folders are relative to the knowledge base, and created when the first note is written into them.
+      Path zettelLocation = dataLocation.resolve(loaded.getProperty(FOLDER_ZETTEL, "zettel")).toAbsolutePath();
+
       // Retrieve the attributes for TaskWarrior now.
       String taskCommand = loaded.getProperty(TASK_COMMAND, "task");
       Optional<Path> taskRc = Optional.ofNullable(loaded.getProperty(TASK_RC)).map(Path::of);
@@ -61,7 +65,7 @@ public final class ConfigurationLoader {
       // The configured editor wins; otherwise follow the usual $EDITOR convention, then a fixed fallback.
       String editor = loaded.getProperty(EDITOR, env.getProperty("EDITOR", "nvim"));
 
-      return new Configuration(explicit, dataLocation, taskCommand, taskRc, taskData, editor);
+      return new Configuration(explicit, dataLocation, zettelLocation, taskCommand, taskRc, taskData, editor);
    }
 
    /**

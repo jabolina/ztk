@@ -167,6 +167,18 @@ class ConfigurationLoaderTest {
    }
 
    @Test
+   void zettelFolderDefaultsToZettelAndIsRelativeToDataLocation() throws IOException {
+      Path data = Files.createDirectories(home.resolve("cerebro"));
+      Path withKey = write(home.resolve("with-key.rc"), "data.location=" + data + "\nfolder.zettel=notes/zettels\n");
+      Path withoutKey = write(home.resolve("without-key.rc"), "data.location=" + data + "\n");
+
+      assertThat(ConfigurationLoader.load(withKey, environment()).zettelLocation())
+            .isEqualTo(data.resolve("notes/zettels"));
+      // Not required to exist: the first zettel creates it.
+      assertThat(ConfigurationLoader.load(withoutKey, environment()).zettelLocation()).isEqualTo(data.resolve("zettel"));
+   }
+
+   @Test
    void unreadableExplicitConfigurationIsAUsageError() {
       Path missing = home.resolve("missing.rc");
 

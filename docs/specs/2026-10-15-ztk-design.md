@@ -214,6 +214,7 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 | `review <id>` | Stops the task if active (an inactive task is only tagged), adds `+review`, keeps its other tags (a week task stays in the week). Prints the task (JSON: `id`, `uuid`, `description`). |
 | `done <id>` | Removes `+week` and completes the task in one Taskwarrior command (an active task is stopped). An already completed task fails with exit 3. Prints the task, named by its short UUID since completed tasks have no ID (JSON: `id` 0, `uuid`, `description`). |
 | `current` | Lists the active task(s) with their note paths (JSON: `tasks` array of `id`, `uuid`, `description`, `note`). Read-only: a task started outside ztk shows no note (JSON `note: null`) and a hint to run `ztk start <id>`. Nothing active is not an error (exit 0, empty `tasks`); the note file's existence is not checked (`check` finds broken links). |
+| `info <id>` | Shows one task with its note path (JSON: the common task shape plus `note`, the absolute path or `null`); same rendering and read-only rule as `current`, on any task. An unknown task exits 2 with a hint to `ztk list`. This is how editors, scripts and agents reach a note: they open, grep or read the path with their own tools. |
 | `week [project]` | Pending `+week` tasks, review tasks highlighted. Human output is Taskwarrior's own table (an ad hoc `weekview` report: ID, Active, Project, Issue, Description), rendered with forced colors and no wrapping; colors are stripped from human output outside a terminal or with `NO_COLOR` (forcing colors also overrides a `color=off` in the user's taskrc). JSON: `tasks` array, the common task shape. The project matches by prefix and includes subprojects, as Taskwarrior does. An empty week is not an error. |
 | `list [project]` | Pending tasks that are not waiting, most urgent first, through the user's own `next` report, never cut at one screen (`limit:none`; `next` has `limit:page`). Same rendering, color, project matching and JSON rules as `week`. No match is not an error; the hint shows the `ztk add` to run. No fallthrough to Taskwarrior for unknown commands: same words would mean different things, and its output and exit codes break ztk's contracts. |
 
@@ -221,9 +222,8 @@ The graph is built in memory per invocation by reading the notes plus one `task 
 
 | Command | Behavior |
 |---|---|
-| `note <id>` / `open <id>` | Open the task note in the editor. |
-| `cat <node>` | Print any note (task, effort, goal, zettel, paper). |
-| `new <title>` | Create a zettel in `folder.zettel`; print path (opens editor only on TTY). |
+| `new <title…> [--editor]` | Creates a zettel in `folder.zettel` (`<YYYYMMDD>-<slug>.md`, frontmatter `title`, ISO `date`, `uuid`, then `# Notes`) and prints its path (JSON: `path`, `uuid`). The words form the title. A title already used that day gets a numbered file (`-2.md`); nothing is overwritten. `--editor`/`-e` also opens it, and fails before writing outside an interactive session. No title-less Telekasten mode (use `nvim -c "Telekasten new_note"`). |
+| ~~`note`/`open`, `cat`~~ | Dropped: `cat` dumps a whole note, while a path lets agents read a range, grep or edit with their own tools; `note` is a human shortcut for `$EDITOR "$(ztk info N | jq -r .note)"` or `ztk start N -e`. |
 | `paper new <pdf-path> --title … [--venue …] [--tags …]` | Create a reading note next to the PDF from `papers/TEMPLATE.md`. |
 
 **Goals and efforts**
@@ -348,7 +348,7 @@ Repository `skills/` folder, installed with `ztk install-skills`:
 
 | Skill | Purpose |
 |---|---|
-| `ztk` | Everyday agent usage: `recent` at session start, `context`, `add` (prints the new task's note path)/`cat`, `session add` at session end, `graph`/`search` for lookups, never run editor commands. Replaces `~/.claude/skills/ztk`. |
+| `ztk` | Everyday agent usage: `recent` at session start, `context`, `add` (prints the new task's note path)/`info` (a task's note path), `session add` at session end, `graph`/`search` for lookups, never run editor commands. Replaces `~/.claude/skills/ztk`. |
 | `ztk-planning` | Collaborative goal → effort → task flow: read `goal tree` + last quarter's `summary`; brainstorm one goal at a time with the user; create it with `goal new`, then write Why / What done looks like together; propose efforts one at a time, creating each only after agreement and writing its note; break an effort into tasks (`add … --effort`) only after its note is agreed. The agent never creates goals or efforts without the user's explicit agreement. |
 | `ztk-summary` | Expand `summary <period> --json` into a narrative for weekly/quarterly/yearly reviews, using only gathered facts, then save with `summary --write` or edit the written file. Replaces `weekly-summary`. |
 

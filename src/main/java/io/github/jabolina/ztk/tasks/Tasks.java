@@ -36,6 +36,7 @@ public final class Tasks {
          "rc.report.weekview.labels=ID,Active,Project,Issue,Description",
          "rc.color.tag.review=bold blue");
 
+   private final Configuration configuration;
    private final TaskStore store;
    private final TaskNotes notes;
 
@@ -47,8 +48,9 @@ public final class Tasks {
     * @param clock the clock for note names and creation dates.
     */
    public Tasks(Configuration configuration, TaskStore store, Clock clock) {
+      this.configuration = configuration;
       this.store = store;
-      this.notes = new TaskNotes(configuration, store, clock);
+      this.notes = new TaskNotes(configuration, clock);
    }
 
    /**
@@ -63,7 +65,7 @@ public final class Tasks {
       requireProject(words);
 
       Task task = store.add(words);
-      Path note = notes.create(task);
+      Path note = linkedNote(task);
       // Re-read: the task returned by add() predates the note link.
       return new TaskNote(store.get(task.uuid()), note);
    }
@@ -78,7 +80,7 @@ public final class Tasks {
    public TaskNote start(String reference) {
       Task task = store.get(reference);
       requireNoOtherActive(task);
-      Path note = notes.create(task);
+      Path note = linkedNote(task);
       List<String> week = List.of("+week", "-review");
       if (task.active()) {
          // It requires a distinction between starting a task which is already started.
@@ -179,6 +181,26 @@ public final class Tasks {
       // One command: Taskwarrior stops an active task when completing it, and applies the modification atomically.
       store.done(task, List.of("-week"));
       return store.get(task.uuid());
+   }
+
+   /**
+    * Returns the task's note, finding or creating it and linking it to the task when the task has none.
+    *
+    * @param task the task, as stored by Taskwarrior.
+    * @return the absolute path of the task's note.
+    * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when the note must be created and the task has no
+    *                      project. Neither the note nor the link is written in that case.
+    */
+   private Path linkedNote(Task task) {
+      if (task.note().isPresent()) {
+         // Already linked: the note attribute is relative to the knowledge base.
+         return configuration.dataLocation().resolve(task.note().get());
+      }
+
+      Path note = notes.findOrCreate(task);
+      // Linked, so the next lookup does not search the knowledge base again.
+      store.setNote(task, configuration.dataLocation().relativize(note));
+      return note;
    }
 
    /**

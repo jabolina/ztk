@@ -44,6 +44,7 @@ public class ConfigCommand implements Command<ZtkInvocation> {
          // Insertion order is the display order.
          Map<String, String> values = new LinkedHashMap<>();
          values.put("data.location", configuration.dataLocation().toString());
+         values.put("folder.zettel", configuration.zettelLocation().toString());
          values.put("task.command", configuration.taskCommand());
 
          // Unset Taskwarrior paths are left out: Taskwarrior then uses its own defaults.

@@ -6,6 +6,7 @@ import java.util.Properties;
 
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.configuration.ConfigurationLoader;
+import io.github.jabolina.ztk.notes.Zettels;
 import io.github.jabolina.ztk.tasks.Tasks;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
 
@@ -28,6 +29,7 @@ public final class Context {
    private Configuration configuration;
    private TaskStore store;
    private Tasks tasks;
+   private Zettels zettels;
 
    /**
     * @param env the process environment.
@@ -75,6 +77,17 @@ public final class Context {
          tasks = new Tasks(configuration(), store(), Clock.systemDefaultZone());
       }
       return tasks;
+   }
+
+   /**
+    * @return the zettel service, created on first use.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public Zettels zettels() {
+      if (zettels == null) {
+         zettels = new Zettels(configuration(), Clock.systemDefaultZone());
+      }
+      return zettels;
    }
 
    /**

@@ -67,6 +67,17 @@ class TaskStoreWriteTest {
    }
 
    @Test
+   void failuresIncludeTheReasonTaskwarriorPrintsOnStdout() {
+      Task task = store.add(List.of("work", "project:Alpha"));
+
+      // Taskwarrior rejects stopping a task that is not started, explaining why on stdout rather than stderr.
+      assertThatThrownBy(() -> store.stop(task))
+            .isInstanceOfSatisfying(ZtkException.class,
+                  e -> assertThat(e.exitCode()).isEqualTo(ZtkException.Kind.TASKWARRIOR.exitCode()))
+            .hasMessageContaining("not started");
+   }
+
+   @Test
    void modifyChangesAttributes() {
       Task task = store.add(List.of("work", "project:Alpha"));
 

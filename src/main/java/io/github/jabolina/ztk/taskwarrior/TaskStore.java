@@ -262,9 +262,13 @@ public final class TaskStore {
          int exitCode = process.waitFor();
          // In case the process has failed, we'll join to collect the stderr from taskwarrior.
          // Since the process has already returned with an exit code, the future should be completed, too.
-         if (exitCode != 0)
+         if (exitCode != 0) {
+            // Taskwarrior explains most rejections on stdout (e.g. "Task 2 'bar' not started.") and some errors on
+            // stderr (e.g. an unknown column), so the reason is whichever of the two it wrote.
+            String reason = (stdout.strip() + System.lineSeparator() + stderr.join().strip()).strip();
             throw ZtkException.taskwarrior("Taskwarrior failed (exit " + exitCode + "): " + String.join(" ", args)
-                  + System.lineSeparator() + stderr.join().strip());
+                  + System.lineSeparator() + reason);
+         }
 
          // Operation succeeded
          return stdout;

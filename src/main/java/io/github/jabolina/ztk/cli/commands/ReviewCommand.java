@@ -4,7 +4,9 @@ import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.option.Argument;
+import org.aesh.command.option.CompletionFallback;
 
+import io.github.jabolina.ztk.cli.TaskCompleter;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.taskwarrior.Task;
 
@@ -26,7 +28,7 @@ import io.github.jabolina.ztk.taskwarrior.Task;
 @CommandDefinition(name = "review", description = "Stop a task and tag it for review", generateHelp = true)
 public class ReviewCommand implements Command<ZtkInvocation> {
 
-   @Argument(description = "The task ID or UUID", required = true)
+   @Argument(description = "The task ID or UUID", required = true, completer = TaskCompleter.class, completeFallback = CompletionFallback.NONE)
    String reference;
 
    @Override

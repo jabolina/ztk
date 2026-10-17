@@ -6,10 +6,12 @@ import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.option.Argument;
+import org.aesh.command.option.CompletionFallback;
 import org.aesh.command.option.Option;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.Editor;
+import io.github.jabolina.ztk.cli.TaskCompleter;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.tasks.TaskNote;
 import tools.jackson.databind.node.ObjectNode;
@@ -34,7 +36,7 @@ import tools.jackson.databind.node.ObjectNode;
 @CommandDefinition(name = "start", description = "Start a task and print its note path", generateHelp = true)
 public class StartCommand implements Command<ZtkInvocation> {
 
-   @Argument(description = "The task ID or UUID", required = true)
+   @Argument(description = "The task ID or UUID", required = true, completer = TaskCompleter.class, completeFallback = CompletionFallback.NONE)
    String reference;
 
    @Option(name = "editor", shortName = 'e', hasValue = false, description = "Also open the note in the configured editor")

@@ -6,7 +6,9 @@ import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.option.Argument;
+import org.aesh.command.option.CompletionFallback;
 
+import io.github.jabolina.ztk.cli.TaskCompleter;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import tools.jackson.databind.node.ObjectNode;
@@ -30,7 +32,7 @@ import tools.jackson.databind.node.ObjectNode;
 @CommandDefinition(name = "info", description = "Show a task information and its note path.")
 public class InfoCommand implements Command<ZtkInvocation> {
 
-   @Argument(description = "The task ID or UUID", required = true)
+   @Argument(description = "The task ID or UUID", required = true, completer = TaskCompleter.class, completeFallback = CompletionFallback.NONE)
    String reference;
 
    @Override

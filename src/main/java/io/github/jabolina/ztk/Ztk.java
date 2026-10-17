@@ -1,14 +1,19 @@
 package io.github.jabolina.ztk;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import org.aesh.AeshRuntimeRunner;
 import org.aesh.command.Command;
 import org.aesh.command.CommandResult;
+import org.aesh.command.completer.CompleterInvocation;
+import org.aesh.command.completer.OptionCompleter;
 import org.aesh.command.container.CommandContainer;
 import org.aesh.command.impl.container.AeshCommandContainerBuilder;
 import org.aesh.command.impl.internal.ProcessedCommand;
+import org.aesh.command.impl.internal.ProcessedOption;
 import org.aesh.command.impl.parser.CommandLineParser;
 import org.aesh.command.invocation.CommandInvocation;
 import org.aesh.command.invocation.CommandInvocationProvider;
@@ -17,6 +22,8 @@ import org.aesh.command.validator.OptionValidatorException;
 
 import io.github.jabolina.ztk.Context.OutputMode;
 import io.github.jabolina.ztk.cli.ZtkCommand;
+import io.github.jabolina.ztk.cli.ZtkCompleter;
+import io.github.jabolina.ztk.cli.ZtkCompleterInvocation;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 
 /**
@@ -57,7 +64,7 @@ public final class Ztk {
                // Lazy startup renders help with its own parsers, which only honor the real NO_COLOR variable.
                // Creating the commands upfront makes every help and usage message go through the parsers built below.
                .lazyStartup(false)
-               .containerBuilder(new ContainerBuilder(context.colors()))
+               .containerBuilder(new ContainerBuilder(context))
                .commandInvocationProvider(invocations)
                .command(ZtkCommand.class)
                .args(args)
@@ -138,20 +145,21 @@ public final class Ztk {
    }
 
    /**
-    * Creates the Æsh command containers, choosing whether messages use colors.
+    * Creates the Æsh command containers, adapted to the running invocation.
     *
     * <p>
-    * The choice applies to the command and all its subcommands.
+    * Each container, with all its subcommands, gets two things from the invocation's context: whether messages use
+    * colors, and the context itself for the ztk completers.
     * </p>
     */
    private static final class ContainerBuilder extends AeshCommandContainerBuilder<ZtkInvocation> {
-      private final boolean colors;
+      private final Context context;
 
       /**
-       * @param colors whether messages may contain ANSI colors.
+       * @param context the dependencies of the running invocation.
        */
-      private ContainerBuilder(boolean colors) {
-         this.colors = colors;
+      private ContainerBuilder(Context context) {
+         this.context = context;
       }
 
       /**
@@ -163,7 +171,7 @@ public final class Ztk {
        */
       @Override
       public CommandContainer<ZtkInvocation> create(Class<? extends Command> command) throws CommandLineParserException {
-         return withColors(super.create(command));
+         return prepare(super.create(command));
       }
 
       /**
@@ -175,19 +183,19 @@ public final class Ztk {
        */
       @Override
       public CommandContainer<ZtkInvocation> create(Command command) throws CommandLineParserException {
-         return withColors(super.create(command));
+         return prepare(super.create(command));
       }
 
       /**
-       * Applies the color choice to a container.
+       * Applies the invocation's context to a container.
        *
        * @param container the container just created.
        * @return the same container.
        */
-      private CommandContainer<ZtkInvocation> withColors(CommandContainer<ZtkInvocation> container) {
-         // Propagates to every option and subcommand parser of the container.
-         container.getParser().updateAnsiMode(colors);
+      private CommandContainer<ZtkInvocation> prepare(CommandContainer<ZtkInvocation> container) {
+         container.getParser().updateAnsiMode(context.colors());
          argumentColors(container.getParser());
+         completers(container.getParser());
          return container;
       }
 
@@ -204,14 +212,57 @@ public final class Ztk {
       private void argumentColors(CommandLineParser<ZtkInvocation> parser) {
          ProcessedCommand<Command<ZtkInvocation>, ZtkInvocation> command = parser.getProcessedCommand();
          if (command.getArgument() != null)
-            command.getArgument().updateAnsiMode(colors);
+            command.getArgument().updateAnsiMode(context.colors());
 
          if (command.getArguments() != null)
-            command.getArguments().updateAnsiMode(colors);
+            command.getArguments().updateAnsiMode(context.colors());
 
          if (parser.getChildParsers() != null) {
             for (CommandLineParser<ZtkInvocation> child : parser.getChildParsers()) {
                argumentColors(child);
+            }
+         }
+      }
+
+      /**
+       * Gives the ztk completers of a command and all its subcommands access to the invocation's context.
+       *
+       * <p>
+       * Æsh creates completers itself and calls them with its own invocation. Each {@link ZtkCompleter} is replaced by
+       * a completer that calls it with a {@link ZtkCompleterInvocation} instead. Æsh's own completers are left as they
+       * are. Failures, such as a missing configuration, leave the completer without candidates.
+       * </p>
+       *
+       * @param parser the parser of the command.
+       */
+      private void completers(CommandLineParser<ZtkInvocation> parser) {
+         ProcessedCommand<Command<ZtkInvocation>, ZtkInvocation> command = parser.getProcessedCommand();
+         List<ProcessedOption> options = new ArrayList<>(command.getOptions());
+         if (command.getArgument() != null)
+            options.add(command.getArgument());
+
+         if (command.getArguments() != null)
+            options.add(command.getArguments());
+
+         for (ProcessedOption option : options) {
+            // Æsh may hand the same command over twice.
+            // A replaced completer is no longer a ZtkCompleter, so it is never wrapped again.
+            if (option.completer() instanceof ZtkCompleter completer) {
+               OptionCompleter<CompleterInvocation> withContext = invocation -> {
+                  try {
+                     completer.complete(new ZtkCompleterInvocation(invocation, context));
+                  } catch (ZtkException e) {
+                     // Completion runs on every <TAB>, and a message would land in the middle of the command.
+                     // Without candidates, the user would just run the command, and report any failure there.
+                  }
+               };
+               option.setCompleter(withContext);
+            }
+         }
+
+         if (parser.getChildParsers() != null) {
+            for (CommandLineParser<ZtkInvocation> child : parser.getChildParsers()) {
+               completers(child);
             }
          }
       }

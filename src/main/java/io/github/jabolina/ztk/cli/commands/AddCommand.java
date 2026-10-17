@@ -7,8 +7,10 @@ import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.option.Arguments;
+import org.aesh.command.option.CompletionFallback;
 
 import io.github.jabolina.ztk.cli.ArgumentGuard;
+import io.github.jabolina.ztk.cli.AttributeCompleter;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.tasks.TaskNote;
 import tools.jackson.databind.node.ObjectNode;
@@ -35,7 +37,7 @@ import tools.jackson.databind.node.ObjectNode;
 public class AddCommand implements Command<ZtkInvocation> {
 
    @Arguments(description = "The description and Taskwarrior attributes, e.g. 'fix bug project:Alpha +week'",
-         validator = ArgumentGuard.class, required = true)
+         validator = ArgumentGuard.class, required = true, completer = AttributeCompleter.class, completeFallback = CompletionFallback.NONE)
    List<String> words;
 
    @Override

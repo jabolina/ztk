@@ -4,16 +4,19 @@ import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.option.Argument;
+import org.aesh.command.option.CompletionFallback;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ArgumentGuard;
+import io.github.jabolina.ztk.cli.ProjectCompleter;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.tasks.Listing;
 
 @CommandDefinition(name = "list", description = "List the pending tasks, most urgent first", generateHelp = true)
 public class ListCommand implements Command<ZtkInvocation> {
 
-   @Argument(description = "Only list this project's tasks", validator = ArgumentGuard.class)
+   @Argument(description = "Only list this project's tasks", validator = ArgumentGuard.class, completer = ProjectCompleter.class,
+         completeFallback = CompletionFallback.NONE)
    String project;
 
    @Override

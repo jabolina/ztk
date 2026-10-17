@@ -78,6 +78,57 @@ public final class TaskStore {
    }
 
    /**
+    * Lists the IDs of the tasks that have one.
+    *
+    * <p>
+    * Taskwarrior gives IDs only to pending and waiting tasks; completed and deleted tasks are known by their UUID.
+    * </p>
+    *
+    * @return the task IDs, in ascending order.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails.
+    */
+   public List<String> ids() {
+      // A helper command for shell completion: one ID per line, without a report around it.
+      return run(List.of("_ids")).lines().toList();
+   }
+
+   /**
+    * Lists the projects that still have work to do.
+    *
+    * <p>
+    * Only projects with pending tasks are listed, sub-projects included (e.g. {@code Alpha} and {@code Alpha.Docs}).
+    * Projects whose tasks are all completed or deleted are left out.
+    * </p>
+    *
+    * @return the project names, in Taskwarrior's order.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails.
+    */
+   public List<String> projects() {
+      // A helper command meant for shell completion: one project per line.
+      return run(List.of("_projects")).lines().toList();
+   }
+
+   /**
+    * Lists the tags of the tasks still open.
+    *
+    * <p>
+    * Only tags set on pending or waiting tasks are listed. Taskwarrior's virtual tags, such as {@code ACTIVE}, are left
+    * out: they describe a task's state and can never be added to one.
+    * </p>
+    *
+    * @return the tag names, without the leading {@code +}, sorted and without duplicates.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails.
+    */
+   public List<String> tags() {
+      // Taskwarrior's _tags helper mixes in the virtual tags, so the tags are read from the open tasks instead.
+      return query("-COMPLETED", "-DELETED").stream()
+            .flatMap(task -> task.tags().stream())
+            .distinct()
+            .sorted()
+            .toList();
+   }
+
+   /**
     * Renders a Taskwarrior report as Taskwarrior prints it at a terminal, for people to read.
     *
     * <p>

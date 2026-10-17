@@ -98,6 +98,43 @@ class ListingCommandsTest {
    }
 
    @Test
+   void listShowsEveryPendingTaskEvenBeyondOneScreen() {
+      // Taskwarrior's next report is limited to one screen, about 20 rows when its output is captured.
+      for (int i = 1; i <= 40; i++) {
+         // Zero-padded, so "Chore 01" cannot match inside "Chore 10".
+         taskwarrior.task("add", "Chore %02d".formatted(i), "project:Gamma");
+      }
+
+      Result result = CliHarness.run(taskwarrior.environment(), true, "list");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("Fix flaky test", "Write spec");
+      for (int i = 1; i <= 40; i++) {
+         assertThat(result.out()).contains("Chore %02d".formatted(i));
+      }
+   }
+
+   @Test
+   void listWithAProjectShowsOnlyThatProjectsTasks() {
+      taskwarrior.task("add", "Review design", "project:Beta");
+
+      Result result = CliHarness.run(taskwarrior.environment(), true, "list", "Beta");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("Review design")
+            .doesNotContain("Fix flaky test", "Write spec");
+   }
+
+   @Test
+   void listWithNoMatchingTasksSaysSoAndSucceeds() {
+      Result result = CliHarness.run(taskwarrior.environment(), true, "list", "Nope");
+
+      assertThat(result.exitCode()).isZero();
+      // Names the project, and points to the command that creates a task in it.
+      assertThat(result.out()).contains("No pending tasks", "Nope", "ztk add");
+   }
+
+   @Test
    void weekWithNoTasksSaysSoAndSucceeds() {
       taskwarrior.task("1", "modify", "-week");
 

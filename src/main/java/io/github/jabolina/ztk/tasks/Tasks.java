@@ -122,20 +122,25 @@ public final class Tasks {
     * @return the week's pending tasks and their table. The table is empty when the week has no tasks.
     */
    public Listing week(String project) {
-      List<String> filter = new ArrayList<>(List.of("status:pending", "+week"));
-      if (project != null) {
-         // Taskwarrior matches the start of the name:
-         // "Alpha" also select "Alpha.UI".
-         filter.add(PROJECT + project);
-      }
-      List<Task> tasks = store.query(filter.toArray(String[]::new));
-      // Taskwarrior fails a report that matches nothing, and there is nothing to show anyways.
-      if (tasks.isEmpty())
-         return Listing.EMPTY;
-
+      List<String> filter = filter(project, "status:pending", "+week");
       List<String> arguments = new ArrayList<>(WEEK_REPORT);
       arguments.addAll(filter);
       return new Listing(store.query(filter.toArray(String[]::new)), new Report("weekview", arguments));
+   }
+
+   /**
+    * Lists the pending tasks that are not waiting, most urgent first.
+    *
+    * @param project the project to list, including its subprojects, or {@code null} for every project.
+    * @return the tasks and the report showing them.
+    */
+   public Listing list(String project) {
+      List<String> filter = filter(project, "status:pending", "-WAITING");
+      // The user's own next report, so its columns and sorting are kept.
+      List<String> arguments = new ArrayList<>(filter);
+      // The next report is limited to one screen by default (limit:page), which silently hides tasks.
+      arguments.add("limit:none");
+      return new Listing(store.query(filter.toArray(String[]::new)), new Report("next", arguments));
    }
 
    /**
@@ -174,6 +179,22 @@ public final class Tasks {
       // One command: Taskwarrior stops an active task when completing it, and applies the modification atomically.
       store.done(task, List.of("-week"));
       return store.get(task.uuid());
+   }
+
+   /**
+    * Builds a Taskwarrior filter, optionally narrowed to a project.
+    *
+    * @param project the project to select, including its subprojects, or {@code null} for every project.
+    * @param terms the filter terms that are always applied, e.g. {@code "status:pending", "+week"}.
+    * @return a mutable filter, so callers can append report-only terms.
+    */
+   private static List<String> filter(String project, String... terms) {
+      List<String> filter = new ArrayList<>(List.of(terms));
+      if (project != null) {
+         // Taskwarrior matches the start of the name: "Alpha" also selects "Alpha.Ui".
+         filter.add(PROJECT + project);
+      }
+      return filter;
    }
 
    /**

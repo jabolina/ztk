@@ -8,20 +8,28 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-18, Task 2 done)
+## Where we left off (2026-10-18, Task 3 done)
 
-Tasks 1 and 2 are done. Task 2 brought in reading the knowledge base and `search`:
+Tasks 1 to 3 are done. Task 2 brought in reading the knowledge base and `search`:
 
 - `notes.KnowledgeBase.read` walks lazily (recursive `Files.list`, hidden folders never entered, `AGENTS.md`/`CLAUDE.md` excluded) and streams each note's body lines to a caller-supplied reader; bodies are never held in memory. `read(project, …)` walks only that project folder (never a reserved one).
-- `Note` is a sealed interface: `Note.Header` (name, path, title, modified) plus variants `Note.Task` (UUID) and `Note.Plain`; `NoteType` is the enum behind `--type`. Types: zettel, paper, task, project, other (reserved folders are `other` until their own types exist).
+- `Note` is a sealed interface: `Note.Header` (name, path, title, modified) plus variants `Note.Task` (UUID), `Note.Paper` (PDF) and `Note.Plain`; `NoteType` is the enum behind `--type`. Types: zettel, paper, task, project, other (reserved folders are `other` until their own types exist).
 - Frontmatter is YAML, falling back to flat `key: value` lines (56 real titles with an unquoted `: `). Unreadable notes (not UTF-8, no permission) are skipped with a `NoteWarning` in JSON `warnings` or on stderr.
 - `search.Search.find(Query, warnings)` returns a sorted stream of `Match` (title match, matching lines, modification time); the command collects it for the JSON and the human `cli.renderer.Table` (built once with `Table.builder()`, render only).
-- Verified read-only on `~/cerebro`: results equal an independent title-and-body search for five queries; no warnings; about 330 ms per search on the JVM, startup included.
+
+Task 3 brought in `paper new`:
+
+- `notes.Papers.create(pdf, Details)` checks everything first (PDF exists, venue is one visible folder name, title gives a slug, neither target exists), then copies the PDF and writes the note with `NoteFiles.write` (exact name, `CREATE_NEW`). The template is a text block in `Papers`: guidance only, no examples, so new notes do not match topic searches.
+- `cli.commands.PaperCommand` is a group command (`paper new`), like `config`. `Filed` writes `id`/`path`/`pdf`.
+- The "relative path without `.md`" naming rule is in both `KnowledgeBase.name` and `Papers.create`; share it when `graph` needs it a third time.
+- Verified: `search --type paper` read-only on `~/cerebro` (3 notes, `pdf: null`, no warnings); `paper new` only in a scratch knowledge base.
 
 **Next steps, in order:**
-1. Task 3 (`paper new`), TDD. Read `papers/TEMPLATE.md` (read-only) for the built-in template before the user deletes it.
+1. Task 4 (`graph`), TDD.
 2. Open question, not done: reject a folder nested inside another (`notes` and `notes/papers`)? The spec only rejects the same folder.
 3. When `graph` arrives, move the warnings consumer from `SearchCommand` to `ZtkInvocation`; reuse `Table` for `graph` and `check`.
+4. Maybe: `--year twenty` prints only Æsh's "Invalid integer value"; a `YearConverter` could name the option and give an example.
+5. Phase 5 migration: existing paper notes have no `pdf` field; set it where a PDF with the same base name sits next to the note.
 
 **Working agreement:** TDD, one test at a time; Claude writes tests and snippets, the user writes production code and runs the tests. Commit once a whole command is done. Verify Æsh/Taskwarrior behavior in the scratchpad, never against real data. Real notes in `~/cerebro` are only read (surveys, final checks), never written; nothing about this work goes there.
 

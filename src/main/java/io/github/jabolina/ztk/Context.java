@@ -7,6 +7,7 @@ import java.util.Properties;
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.configuration.ConfigurationLoader;
 import io.github.jabolina.ztk.notes.KnowledgeBase;
+import io.github.jabolina.ztk.notes.Papers;
 import io.github.jabolina.ztk.notes.Zettels;
 import io.github.jabolina.ztk.search.Search;
 import io.github.jabolina.ztk.tasks.Tasks;
@@ -33,6 +34,7 @@ public final class Context {
    private Tasks tasks;
    private Zettels zettels;
    private Search search;
+   private Papers papers;
 
    /**
     * @param env the process environment.
@@ -102,6 +104,16 @@ public final class Context {
          search = new Search(new KnowledgeBase(configuration()));
       }
       return search;
+   }
+
+   /**
+    * @return the service that files papers, created on first use.
+    */
+   public Papers papers() {
+      if (papers == null) {
+         papers = new Papers(configuration(), Clock.systemDefaultZone());
+      }
+      return papers;
    }
 
    /**

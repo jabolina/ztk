@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -390,6 +392,36 @@ class SearchCommandTest {
 
       assertThat(result.exitCode()).isZero();
       assertThat(JSON.readTree(result.out()).path("results")).isEmpty();
+   }
+
+   @Test
+   void paperResultsCarryTheirPdfResolvedNextToTheNote() throws IOException {
+      Path filed = note("papers/ATC/2014/raft.md", """
+            ---
+            title: In Search of an Understandable Consensus Algorithm
+            pdf: raft.pdf
+            ---
+
+            Raft elects a leader.
+            """);
+      // Filed by hand before ztk, with no pdf field.
+      Path older = note("papers/others/paxos.md", "Raft and Paxos.\n");
+      Path zettel = note("zettel/20261015-raft.md", "Raft elects a leader.\n");
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "search", "raft");
+
+      assertThat(result.exitCode()).isZero();
+      Map<String, JsonNode> byPath = JSON.readTree(result.out()).path("results").valueStream()
+            .collect(Collectors.toMap(match -> match.path("path").asString(), match -> match));
+      // Absolute, like the note's own path, so it can be opened from anywhere.
+      assertThat(byPath.get(filed.toString()).path("pdf").asString())
+            .isEqualTo(filed.resolveSibling("raft.pdf").toString());
+      // A paper without one still has the key, so every paper result reads the same.
+      JsonNode withoutPdf = byPath.get(older.toString());
+      assertThat(withoutPdf.has("pdf")).isTrue();
+      assertThat(withoutPdf.path("pdf").isNull()).isTrue();
+      // Only papers have a PDF.
+      assertThat(byPath.get(zettel.toString()).has("pdf")).isFalse();
    }
 
    /**

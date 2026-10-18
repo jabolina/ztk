@@ -12,6 +12,7 @@ import io.github.jabolina.ztk.cli.commands.DoneCommand;
 import io.github.jabolina.ztk.cli.commands.InfoCommand;
 import io.github.jabolina.ztk.cli.commands.ListCommand;
 import io.github.jabolina.ztk.cli.commands.NewCommand;
+import io.github.jabolina.ztk.cli.commands.PaperCommand;
 import io.github.jabolina.ztk.cli.commands.ReviewCommand;
 import io.github.jabolina.ztk.cli.commands.SearchCommand;
 import io.github.jabolina.ztk.cli.commands.StartCommand;
@@ -35,6 +36,7 @@ import io.github.jabolina.ztk.cli.commands.WeekCommand;
             InfoCommand.class,
             NewCommand.class,
             SearchCommand.class,
+            PaperCommand.class,
 })
 public class ZtkCommand implements Command<ZtkInvocation> {
 

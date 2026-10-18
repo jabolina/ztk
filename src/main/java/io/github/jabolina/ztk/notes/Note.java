@@ -2,6 +2,7 @@ package io.github.jabolina.ztk.notes;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Optional;
 
 import io.github.jabolina.ztk.util.JsonWritable;
 import tools.jackson.databind.node.ObjectNode;
@@ -57,10 +58,33 @@ public sealed interface Note extends JsonWritable {
     */
    record Plain(Header header, NoteType type) implements Note {
       public Plain {
-         // A task note without its task would lose the one value that makes it a task note.
-         if (type == NoteType.TASK) {
-            throw new IllegalArgumentException("A task note needs its task UUID: use Note.Task");
+         // A task note without its task, or a paper without its PDF, would lose what makes it that type.
+         if (type == NoteType.TASK || type == NoteType.PAPER) {
+            throw new IllegalArgumentException("Task and paper notes have their own variants: use Note.Task or Note.Paper");
          }
+      }
+   }
+
+   /**
+    * A note under the papers folder.
+    *
+    * @param header The note's common data.
+    * @param pdf    The absolute path of the paper's PDF, from {@code pdf} in the frontmatter, which is relative to the
+    *               note; empty when the note has none.
+    */
+   record Paper(Header header, Optional<Path> pdf) implements Note {
+
+      @Override
+      public NoteType type() {
+         return NoteType.PAPER;
+      }
+
+      @Override
+      public ObjectNode writeJson(ObjectNode target) {
+         ObjectNode json = Note.super.writeJson(target);
+         // Null rather than left out, so every paper result has the same fields.
+         return pdf.map(file -> json.put("pdf", file.toString()))
+               .orElseGet(() -> json.putNull("pdf"));
       }
    }
 

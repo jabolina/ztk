@@ -10,6 +10,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.SequencedMap;
 
@@ -54,15 +55,32 @@ public final class NoteFiles {
     * @throws UncheckedIOException when the note cannot be written.
     */
    public static Path create(Path directory, String title, OffsetDateTime now, SequencedMap<String, String> fields, String body) {
-      // ObjectNode keeps insertion order, so the keys appear exactly in this order.
-      ObjectNode frontmatter = YAML.createObjectNode();
+      // Sequenced to keep insertion order.
+      SequencedMap<String, String> frontmatter = new LinkedHashMap<>();
       frontmatter.put("title", title);
       frontmatter.put("date", date(now));
-      fields.forEach(frontmatter::put);
+      frontmatter.putAll(fields);
 
-      // The "---" delimiters are written explicitly, since the mapper does not close the block.
-      String content = "---\n" + YAML.writeValueAsString(frontmatter) + "---\n\n" + body;
-      return write(directory, now.toLocalDate().format(DAY) + "-" + slug(title), content);
+      return write(directory, now.toLocalDate().format(DAY) + "-" + slug(title), render(frontmatter, body));
+   }
+
+   /**
+    * Writes a new note at an exact path, creating its folder if needed.
+    *
+    * @param file the note's path, e.g. {@code <papers>/ATC/2014/in-search-of-an-understandable-consensus-algorithm.md}.
+    * @param frontmatter the frontmatter fields, in order; an empty value is written as {@code ""}.
+    * @param body the Markdown after the frontmatter.
+    * @return {@code file}.
+    * @throws UncheckedIOException when the note cannot be written, including when {@code file} already exists.
+    */
+   public static Path write(Path file, SequencedMap<String, String> frontmatter, String body) {
+      try {
+         Files.createDirectories(file.getParent());
+         // CREATE_NEW: an existing note is never overwritten.
+         return Files.writeString(file, render(frontmatter, body), StandardOpenOption.CREATE_NEW);
+      } catch (IOException e) {
+         throw new UncheckedIOException(e);
+      }
    }
 
    /**
@@ -98,6 +116,21 @@ public final class NoteFiles {
    }
 
    /**
+    * Renders a note: the frontmatter between {@code ---} delimiters, a blank line, then the body.
+    *
+    * @param frontmatter the frontmatter fields, in order.
+    * @param body the Markdown after the frontmatter.
+    * @return the note content.
+    */
+   private static String render(SequencedMap<String, String> frontmatter, String body) {
+      // ObjectNode keeps insertion order, so the keys appear exactly in this order.
+      ObjectNode node = YAML.createObjectNode();
+      frontmatter.forEach(node::put);
+      // The "---" delimiters are written explicitly, since the mapper does not close the block.
+      return "---\n" + YAML.writeValueAsString(node) + "---\n\n" + body;
+   }
+
+   /**
     * Turns a task description into a file name fragment.
     *
     * <p>
@@ -108,7 +141,7 @@ public final class NoteFiles {
     * @param description the task description.
     * @return the slug, e.g. {@code fix-flaky-test}.
     */
-   private static String slug(String description) {
+   static String slug(String description) {
       return description.toLowerCase(Locale.ROOT)
             .replaceAll("[^a-z0-9]+", "-")
             .replaceAll("^-|-$", "");

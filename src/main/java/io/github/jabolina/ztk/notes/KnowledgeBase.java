@@ -216,6 +216,7 @@ public final class KnowledgeBase {
          NoteType type = type(file, task.isPresent());
          Note note = switch (type) {
             case TASK -> new Note.Task(header, task.orElseThrow());
+            case PAPER -> new Note.Paper(header, frontmatter.path("pdf").asStringOpt().map(file::resolveSibling));
             default -> new Note.Plain(header, type);
          };
 

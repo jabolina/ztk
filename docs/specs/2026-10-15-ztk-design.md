@@ -117,11 +117,11 @@ Without the definition, Taskwarrior treats `note:x` as description text (`modify
 
 ### 4.4 Note types
 
-Type is inferred from location only, never from file names; existing notes need no frontmatter edits. ztk reads every `.md` under `data.location`, in every subfolder, skipping hidden directories and `AGENTS.md`/`CLAUDE.md` anywhere (instructions for agents, not knowledge). A note with malformed frontmatter or that cannot be read is skipped with a warning.
+Type is inferred from location only, never from file names; existing notes need no frontmatter edits. ztk reads every `.md` under `data.location`, in every subfolder, skipping hidden directories and `AGENTS.md`/`CLAUDE.md` anywhere (instructions for agents, not knowledge). Frontmatter is read as YAML; when that fails, it is read as flat `key: value` lines (key before the first `: `), the only shape ztk and the bash script write, so a title the bash script left unquoted (`title: ISPN-1234: Fix the merge`, 55 of 276 notes today) is still read. A note that cannot be read at all (not UTF-8, no permission) is skipped with a warning.
 
 - under `folder.goals` → goal (yearly or quarterly by depth)
 - under `folder.efforts` → effort
-- under `folder.papers` → paper (any `.md` except the legacy `TEMPLATE.md`)
+- under `folder.papers` → paper
 - under `folder.zettel` → zettel
 - under `folder.journal` → journal
 - under `folder.summaries` → summary
@@ -158,7 +158,7 @@ Effort note body:
 
 Content between `ztk:begin`/`ztk:end` markers is generated and rewritten by `ztk` (for example by `effort show --refresh`, `goal tree --refresh`, and any command that links a task or effort). Everything outside the markers belongs to the user or agent and is never modified.
 
-Task-note, zettel and paper templates are built into ztk, with no user override. The paper template is based on the user's `papers/TEMPLATE.md` (frontmatter `title`, `authors`, `venue`, `link`, `date_read`, `pdf`, then the same eight sections with their italic guidance); fields not given are left empty instead of holding placeholders. `papers/TEMPLATE.md` becomes a leftover.
+Task-note, zettel and paper templates are built into ztk, with no user override. The paper template is based on the user's `papers/TEMPLATE.md` (frontmatter `title`, `authors`, `venue`, `link`, `date_read`, `pdf`, then the same eight sections with their italic guidance); fields not given are left empty instead of holding placeholders. `papers/TEMPLATE.md` becomes a leftover, with no special handling: the user deletes it (until then it reads as a paper).
 
 ### 4.6 Journal format
 
@@ -253,7 +253,7 @@ All create/update commands are non-interactive when given their flags, so agents
 | Command | Behavior |
 |---|---|
 | `graph <node> [--depth N] [--type t1,t2] [--edges e1,e2] [--limit N]` | Neighborhood of a node, for agents first. Edges `link` (with `direction` out/in), `note`, `project`. Breadth-first, default depth 2; each node once, at its shortest depth, with the edge path from the start. Projects are hubs: reached but not expanded unless they are the start node. Dangling links are shown, never expanded. `--type`/`--edges` restrict the walk itself. JSON: flat `nodes` list ordered by depth, each with `id`, `type`, `title`, absolute `path` (a task's note path; `pdf` for papers), `status` for tasks, `depth`, `path` of edges. At most 50 nodes by default (`--limit`); a cut sets `truncated: true` with a hint to narrow. Human: a plain table. |
-| `search <words…> [--type …] [--project …]` | Notes containing every word (case-insensitive, anywhere in the note); `"quoted words"` match a phrase. No regex, no fuzzy matching (compose with `fzf` over the JSON). Searches the body and the frontmatter `title`. JSON per note: `id`, `path`, `type`, `title`, `task` for task notes (from `task_uuid`), `pdf` for papers, up to 3 matching lines with line numbers. Order: title matches, then number of matching lines, then newest. `--type` (comma-separated or repeated), `--project` (that project folder). No match exits 0 with an empty list. |
+| `search <words…> [--type …] [--project …]` | Notes containing every word (case-insensitive, anywhere in the note); `"quoted words"` match a phrase. No regex, no fuzzy matching (compose with `fzf` over the JSON). Searches the body and the frontmatter `title`. JSON per note: `id`, `path`, `type`, `title`, `task` for task notes (from `task_uuid`), `pdf` for papers, up to 3 matching lines with line numbers. Order: title matches, then number of matching lines, then most recently modified file (the frontmatter `date` is not used: existing notes carry it in several non-ISO formats, or not at all). `--type` (comma-separated or repeated), `--project` (that project folder). No match exits 0 with an empty list. |
 | `context <task>` | One bundle sized for an agent: task attributes, effort and goal chain, note path plus its last `# Claude Summary` section, last 3 sessions for the task, and directly linked notes (titles + paths). |
 
 **Sessions**
@@ -268,7 +268,7 @@ All create/update commands are non-interactive when given their flags, so agents
 | Command | Behavior |
 |---|---|
 | `summary <week\|YYYY-Www\|YYYY-Qq\|YYYY>` or `summary --since <date\|duration>` | For the period (see §6.3): per quarterly goal → efforts → tasks completed and in progress (with dates and note paths); carried-over efforts; per project, "General work" (effort-less tasks); review queue. Yearly summaries group quarters under their yearly goals. `--write` saves the rendered Markdown to `summaries/<period>.md` and prints its path; it never overwrites an existing file without `--force`. |
-| `check [--kind …] [--project …]` | Errors (exit 3 if any): `dangling-link`, `missing-note` (a task's `note` points to a missing file), `task-without-project` (pending and waiting tasks only). Warnings (exit 0): `orphan-task-note` (`task_uuid` matches no task), `ambiguous-link`, `unreadable-note`. Phase 3 adds unknown efforts/goals and quarterly goals without a valid parent. Each problem: `kind`, `severity`, node ID, path, line (for links), message, hint. Read-only, with no `--fix`: users and agents fix what it reports. Human: a table. |
+| `check [--kind …] [--project …]` | Errors (exit 3 if any): `dangling-link`, `missing-note` (a task's `note` points to a missing file), `task-without-project` (pending and waiting tasks only). Warnings (exit 0): `orphan-task-note` (`task_uuid` matches no task), `ambiguous-link`, `invalid-frontmatter` (not valid YAML, read through the fallback; hint: quote the value), `unreadable-note`. Phase 3 adds unknown efforts/goals and quarterly goals without a valid parent. Each problem: `kind`, `severity`, node ID, path, line (for links), message, hint. Read-only, with no `--fix`: users and agents fix what it reports. Human: a table. |
 
 **Maintenance**
 
@@ -332,7 +332,7 @@ The native binary keeps per-Tab latency low; the target is under 50 ms per call 
 ## 8. Error handling
 
 - **Taskwarrior failures:** exit 4, include `task`'s stderr; no partial writes (validate first, write last).
-- **Malformed frontmatter or unreadable note:** warning on stderr (or in the JSON `warnings` array), note skipped; other notes still load. `check` lists all of them.
+- **Unreadable note:** warning on stderr (or in the JSON `warnings` array), note skipped; other notes still load. Frontmatter that is not valid YAML is read through the fallback without a warning, and `check` reports it as `invalid-frontmatter`.
 - **Writes:** atomic (temp file in the same directory + rename). Re-read a file right before modifying it, since it may be open in nvim. Managed sections are replaced only between their markers; missing markers are appended at the end of the matching heading, or of the file if the heading is absent.
 - **Validation:** unknown effort/goal/parent, missing project, or a duplicate slug → exit 3 with the valid options listed.
 - **No silent creation:** referencing a non-existent effort never auto-creates it.
@@ -345,6 +345,7 @@ Runs idempotently; `--dry-run` prints every change without making it.
 2. Move root-level zettels (`.md` with a `uuid` frontmatter and no `task_uuid`, excluding known files such as `progress*.md`, `AGENTS.md`, `CLAUDE.md`, `Weekly-Status-*.md`, `000-Project-Index.md`) into `folder.zettel`.
 3. Report task projects that differ only by case (e.g. `infinispan` vs `Infinispan`) for manual fixing; never change them automatically.
 4. Move `Weekly-Status-YYYY-WW.md` to `summaries/YYYY-Www.md` (rename only) and `progress*.md` into `journal/` (open: split their `## YYYY-MM-DD: Project -- Title` entries into sessions, or move the files as they are).
+5. Rewrite every frontmatter `date` to ISO 8601 with offset, as ztk writes it (`2026-10-15T09:30:00+02:00`). The bash script wrote `date` output in several locale-dependent layouts (`Tue May 12 03:14:15 PM -03 2026`, `Sat 14 Mar 2026 …`, `Sun May 3 2026`), and some notes have no `date`; report the ones it cannot parse instead of guessing. Quote every frontmatter value that is not valid YAML as written (titles with `: `), so the reading fallback (§4.4) eventually covers nothing.
 
 Wikilinks resolve by name, so moving files does not change link text. Before running step 3 for real, verify that Telekasten in nvim follows a bare-name link to a file in a subfolder (task notes in project subfolders are already linked this way), check which file it opens for a name present in several folders (ztk prefers the linking note's folder, §5),, and point Telekasten's new-note location at `zettel/`.
 

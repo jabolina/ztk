@@ -6,7 +6,9 @@ import java.util.Properties;
 
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.configuration.ConfigurationLoader;
+import io.github.jabolina.ztk.notes.KnowledgeBase;
 import io.github.jabolina.ztk.notes.Zettels;
+import io.github.jabolina.ztk.search.Search;
 import io.github.jabolina.ztk.tasks.Tasks;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
 
@@ -30,6 +32,7 @@ public final class Context {
    private TaskStore store;
    private Tasks tasks;
    private Zettels zettels;
+   private Search search;
 
    /**
     * @param env the process environment.
@@ -88,6 +91,17 @@ public final class Context {
          zettels = new Zettels(configuration(), Clock.systemDefaultZone());
       }
       return zettels;
+   }
+
+   /**
+    * @return the note search, created on first use.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public Search search() {
+      if (search == null) {
+         search = new Search(new KnowledgeBase(configuration()));
+      }
+      return search;
    }
 
    /**

@@ -8,23 +8,31 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-17, Task 1 done)
+## Where we left off (2026-10-18, Task 2 done)
 
-Phase 2's design was settled in an interview on 2026-10-17; the spec and `docs/CONTEXT.md` hold the result. Task 1 is done: the six folders live in a `Folders` record on `Configuration`, always inside `data.location`; absolute, escaping and duplicate folders are rejected; unknown keys are ignored; `config show` lists every folder. The reserved first segments move to Task 2, where the reader uses them.
+Tasks 1 and 2 are done. Task 2 brought in reading the knowledge base and `search`:
+
+- `notes.KnowledgeBase.read` walks lazily (recursive `Files.list`, hidden folders never entered, `AGENTS.md`/`CLAUDE.md` excluded) and streams each note's body lines to a caller-supplied reader; bodies are never held in memory. `read(project, …)` walks only that project folder (never a reserved one).
+- `Note` is a sealed interface: `Note.Header` (name, path, title, modified) plus variants `Note.Task` (UUID) and `Note.Plain`; `NoteType` is the enum behind `--type`. Types: zettel, paper, task, project, other (reserved folders are `other` until their own types exist).
+- Frontmatter is YAML, falling back to flat `key: value` lines (56 real titles with an unquoted `: `). Unreadable notes (not UTF-8, no permission) are skipped with a `NoteWarning` in JSON `warnings` or on stderr.
+- `search.Search.find(Query, warnings)` returns a sorted stream of `Match` (title match, matching lines, modification time); the command collects it for the JSON and the human `cli.renderer.Table` (built once with `Table.builder()`, render only).
+- Verified read-only on `~/cerebro`: results equal an independent title-and-body search for five queries; no warnings; about 330 ms per search on the JVM, startup included.
 
 **Next steps, in order:**
-1. Task 2 (`search`, reading the knowledge base), TDD. Open question: reject a folder nested inside another (`notes` and `notes/papers`)? Not done; the spec only rejects the same folder.
+1. Task 3 (`paper new`), TDD. Read `papers/TEMPLATE.md` (read-only) for the built-in template before the user deletes it.
+2. Open question, not done: reject a folder nested inside another (`notes` and `notes/papers`)? The spec only rejects the same folder.
+3. When `graph` arrives, move the warnings consumer from `SearchCommand` to `ZtkInvocation`; reuse `Table` for `graph` and `check`.
 
 **Working agreement:** TDD, one test at a time; Claude writes tests and snippets, the user writes production code and runs the tests. Commit once a whole command is done. Verify Æsh/Taskwarrior behavior in the scratchpad, never against real data. Real notes in `~/cerebro` are only read (surveys, final checks), never written; nothing about this work goes there.
 
 ## Decisions (summary; the spec has the details)
 
-- **Reading:** every `.md` under `data.location`, recursively, skipping hidden directories and `AGENTS.md`/`CLAUDE.md`; legacy `papers/TEMPLATE.md` is not a paper. Types by location only. Malformed frontmatter or an unreadable file: warning, note skipped.
+- **Reading:** every `.md` under `data.location`, recursively, skipping hidden directories and `AGENTS.md`/`CLAUDE.md`. Types by location only. Frontmatter that is not valid YAML (55 bash-written titles with an unquoted `: `) falls back to flat `key: value` lines; an unreadable file: warning, note skipped.
 - **Wikilinks:** outside fenced code and inline code; target before `|`/`#`; exact file-name match. Resolution: same folder first, then all matches (ambiguous), then task UUID (full or 8-hex short), else dangling. Surveyed on real notes: skipping code removes all false positives (bash `[[ … ]]`); 15 UUID links; `summary`/`ideas` repeat per project.
 - **Node IDs:** printed `task:<uuid>`, `note:<relative path without .md>`, `project:<name>`. Input also takes `task:<id|short>`, bare numbers, bare names; no file paths. Several matches exit 3 listing IDs; none exit 2.
 - **`search`:** words ANDed across the note, `"phrase"`, body + `title`, no regex or fuzzy; up to 3 snippets with line numbers; `--type`, `--project`; never calls Taskwarrior.
 - **`graph`:** agent-first. Edges `link` (out/in), `note`, `project`; breadth-first, depth 2; projects are hubs; filters restrict the walk; flat JSON with paths, cap 50 with `truncated`.
-- **`check`:** errors `dangling-link`, `missing-note`, `task-without-project` (open tasks); warnings `orphan-task-note`, `ambiguous-link`, `unreadable-note`; hints; no `--fix`.
+- **`check`:** errors `dangling-link`, `missing-note`, `task-without-project` (open tasks); warnings `orphan-task-note`, `ambiguous-link`, `invalid-frontmatter`, `unreadable-note`; hints; no `--fix`.
 - **`paper new`:** PDF from anywhere, copied to `papers/<venue|others>/<year>/<slug>.pdf`, note next to it from the built-in template, `pdf` frontmatter; refuses existing targets.
 - **Folders:** all six `folder.*` keys stay, always inside `data.location` (absolute or escaping values are a config error; today `Path.resolve` lets an absolute `folder.zettel` escape). Reserved first segments; duplicates are an error.
 - **Performance:** no cache; notes read on virtual threads; one `task export -DELETED` (274 tasks today) for `graph`/`check`; 300 ms budget on 1,000 notes in the smoke test.

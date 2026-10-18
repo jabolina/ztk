@@ -1,6 +1,7 @@
 package io.github.jabolina.ztk.configuration;
 
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * The folders of the knowledge base, one per kind of note.
@@ -19,4 +20,12 @@ import java.nio.file.Path;
  * @since 1.0
  * @author José Bolina
  */
-public record Folders(Path zettel, Path papers, Path goals, Path efforts, Path journal, Path summaries) { }
+public record Folders(Path zettel, Path papers, Path goals, Path efforts, Path journal, Path summaries) {
+
+   /**
+    * @return every folder, in the order of their configuration keys.
+    */
+   public List<Path> all() {
+      return List.of(zettel, papers, goals, efforts, journal, summaries);
+   }
+}

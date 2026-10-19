@@ -48,6 +48,16 @@ public record Task(
       return "Task " + name + " ('" + description + "')";
    }
 
+   /**
+    * Tells whether the task is still to do.
+    *
+    * @return whether it is pending, or waiting until a later date; done and deleted tasks, and the templates of
+    *         recurring tasks, are not.
+    */
+   public boolean open() {
+      return status == Status.PENDING || status == Status.WAITING;
+   }
+
    @Override
    public ObjectNode writeJson(ObjectNode target) {
       target.put("id", id);

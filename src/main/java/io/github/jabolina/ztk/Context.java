@@ -6,7 +6,7 @@ import java.util.Properties;
 
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.configuration.ConfigurationLoader;
-import io.github.jabolina.ztk.graph.Graph;
+import io.github.jabolina.ztk.graph.KnowledgeGraph;
 import io.github.jabolina.ztk.notes.KnowledgeBase;
 import io.github.jabolina.ztk.notes.Papers;
 import io.github.jabolina.ztk.notes.Zettels;
@@ -36,7 +36,6 @@ public final class Context {
    private Zettels zettels;
    private Search search;
    private Papers papers;
-   private Graph graph;
 
    /**
     * @param env the process environment.
@@ -119,14 +118,18 @@ public final class Context {
    }
 
    /**
-    * @return the graph of the knowledge base, created on first use.
-    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    * Reads the graph of the knowledge base: its notes, and the tasks and projects of Taskwarrior.
+    *
+    * <p>
+    * Read again on every call, as the notes and tasks are now.
+    * </p>
+    *
+    * @return the graph of the knowledge base, with the notes it skipped.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists, and with
+    *                      {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails.
     */
-   public Graph graph() {
-      if (graph == null) {
-         graph = new Graph(new KnowledgeBase(configuration()), store());
-      }
-      return graph;
+   public KnowledgeGraph graph() {
+      return KnowledgeGraph.read(new KnowledgeBase(configuration()), store());
    }
 
    /**

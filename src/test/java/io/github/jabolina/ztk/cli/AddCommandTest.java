@@ -107,7 +107,8 @@ class AddCommandTest {
    void pipedOutputPrintsTheTaskAndNotePathAsJson() {
       Result result = CliHarness.run(taskwarrior.environment(), false, "add", "write", "spec", "project:Alpha");
 
-      assertThat(result.exitCode()).isZero();
+      // Taskwarrior's message, should it fail.
+      assertThat(result.exitCode()).as(result.err()).isZero();
       Task task = store.query().getFirst();
       JsonNode json = JSON.readTree(result.out());
       assertThat(json.path("schema").asInt()).isEqualTo(1);

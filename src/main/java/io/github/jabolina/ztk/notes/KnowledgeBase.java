@@ -259,11 +259,11 @@ public final class KnowledgeBase {
    private static NoteWarning unreadable(Path file, IOException failure) {
       // The decoder's own message ("Input length = 1") says nothing useful, so name the problem instead.
       if (failure instanceof CharacterCodingException) {
-         return new NoteWarning(file,
-               "Not valid UTF-8, note skipped. Convert it to UTF-8, e.g. with iconv -f latin1 -t utf-8.");
+         return new NoteWarning(file, "Not valid UTF-8, note skipped.",
+               "Convert it to UTF-8, e.g. with iconv -f latin1 -t utf-8.");
       }
-      return new NoteWarning(file, "Cannot be read (" + failure.getMessage() + "), note skipped. "
-            + "Check that the file exists and its permissions allow reading it.");
+      return new NoteWarning(file, "Cannot be read (" + failure.getMessage() + "), note skipped.",
+            "Check that the file exists and its permissions allow reading it.");
    }
 
    /**

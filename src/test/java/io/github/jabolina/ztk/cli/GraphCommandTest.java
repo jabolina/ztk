@@ -334,6 +334,20 @@ class GraphCommandTest {
    }
 
    @Test
+   void aShortUuidOfDigitsOnlyStillFindsItsTask() throws IOException {
+      // One UUID in about forty starts with eight digits, which also read as a task number.
+      Path imported = Files.writeString(root.resolve("task.json"), """
+            [{"uuid": "12345678-aaaa-4bbb-8ccc-1234567890ab", "description": "Fix bug", "status": "pending",
+              "project": "Alpha"}]
+            """);
+      taskwarrior.task("import", imported.toString());
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "graph", "task:12345678", "--depth", "0");
+
+      assertThat(ids(result)).containsExactly("task:12345678-aaaa-4bbb-8ccc-1234567890ab");
+   }
+
+   @Test
    void aTaskNumberNoTaskHasIsNotFound() {
       taskwarrior.task("add", "Fix bug", "project:Alpha");
 

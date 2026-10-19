@@ -211,7 +211,7 @@ public final class ZtkInvocation implements CommandInvocation {
       return warning -> {
          warning.writeJson(warnings.addObject());
          if (!context.json()) {
-            printErr("warning: " + warning.path() + ": " + warning.message());
+            printErr("warning: " + warning.path() + ": " + warning.message() + " " + warning.hint());
          }
       };
    }

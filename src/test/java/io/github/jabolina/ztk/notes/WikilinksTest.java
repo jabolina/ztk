@@ -52,6 +52,8 @@ class WikilinksTest {
     */
    private static List<String> targets(String... body) {
       AtomicInteger number = new AtomicInteger();
-      return Wikilinks.targets(Stream.of(body).map(text -> new Line(number.incrementAndGet(), text))).toList();
+      return Wikilinks.links(Stream.of(body).map(text -> new Line(number.incrementAndGet(), text)))
+            .map(Wikilink::target)
+            .toList();
    }
 }

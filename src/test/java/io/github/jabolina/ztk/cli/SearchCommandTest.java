@@ -351,6 +351,7 @@ class SearchCommandTest {
       assertThat(warnings).hasSize(1);
       assertThat(warnings.get(0).path("path").asString()).isEqualTo(latin1.toString());
       assertThat(warnings.get(0).path("message").asString()).contains("UTF-8", "skipped");
+      assertThat(warnings.get(0).path("hint").asString()).contains("iconv");
    }
 
    @Test

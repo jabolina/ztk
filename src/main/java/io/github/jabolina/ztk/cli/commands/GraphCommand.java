@@ -22,6 +22,7 @@ import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.cli.converters.NoteTypeConverter;
 import io.github.jabolina.ztk.cli.renderer.Table;
 import io.github.jabolina.ztk.graph.Graph;
+import io.github.jabolina.ztk.graph.KnowledgeGraph;
 import io.github.jabolina.ztk.graph.Node;
 import io.github.jabolina.ztk.graph.Reached;
 import io.github.jabolina.ztk.notes.Note;
@@ -106,7 +107,10 @@ public final class GraphCommand implements Command<ZtkInvocation> {
 
       List<Reached> walked;
       // One more than the limit, to tell a cut list from one that fits exactly; the walk stops there.
-      try (Stream<Reached> stream = invocation.context().graph().walk(query, warnings)) {
+      KnowledgeGraph knowledgeGraph = invocation.context().graph();
+      knowledgeGraph.skipped().forEach(warnings);
+      Graph graph = new Graph(knowledgeGraph);
+      try (Stream<Reached> stream = graph.walk(query)) {
          walked = stream.limit(limit + 1L).toList();
       }
       boolean truncated = walked.size() > limit;

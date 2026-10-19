@@ -6,6 +6,7 @@ import org.aesh.command.CommandResult;
 import org.aesh.command.option.Option;
 
 import io.github.jabolina.ztk.cli.commands.AddCommand;
+import io.github.jabolina.ztk.cli.commands.CheckCommand;
 import io.github.jabolina.ztk.cli.commands.ConfigCommand;
 import io.github.jabolina.ztk.cli.commands.CurrentCommand;
 import io.github.jabolina.ztk.cli.commands.DoneCommand;
@@ -39,6 +40,7 @@ import io.github.jabolina.ztk.cli.commands.WeekCommand;
             SearchCommand.class,
             PaperCommand.class,
             GraphCommand.class,
+            CheckCommand.class,
 })
 public class ZtkCommand implements Command<ZtkInvocation> {
 

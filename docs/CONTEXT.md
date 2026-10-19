@@ -69,10 +69,23 @@ _Avoid_: reference, handle
 **Ambiguous link**:
 A wikilink with no match in its own folder and several matches elsewhere.
 
+**Orphan task note**:
+A **Task note** whose `task_uuid` names no task: the task was deleted, or the UUID is wrong.
+
+### Checking
+
+**Problem**:
+Something wrong in the knowledge base that `check` reports, with what to do about it; each has a code (`dangling-link`, `missing-note`…) and a **Severity**. Users and agents fix problems themselves.
+_Avoid_: issue (a tracker's), error (one of the severities)
+
+**Severity**:
+How much a **Problem** matters: an error means something is broken and fails `check`; a warning means it works, but likely not as meant.
+
 ## Relationships
 
 - A **Paper** yields zero or more **Zettels**, each linking back to it; a **Task note** links to the **Zettels** it applies
 - A **Note** contains zero or more **Wikilinks**
+- An open **Task** has a project and, when its `note` attribute is set, a **Task note** there; every **Task note** has its **Task** unless it is an **Orphan task note**
 - A **Wikilink** resolves to the **Note** of that name in the linking note's own folder if there is one, else to every **Note** of that name (an **Ambiguous link** when more than one); failing that, a target shaped as a task UUID (full or 8-hex short) resolves to that **Task**; otherwise it is a **Dangling link**
 
 ## Example dialogue

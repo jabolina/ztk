@@ -24,12 +24,12 @@ public class Wikilinks {
    private static final Pattern INLINE_CODE = Pattern.compile("(`+).+?\\1");
 
    /**
-    * Lists the targets of the wikilinks in a note's body.
+    * Lists the wikilinks in a note's body.
     *
     * <p>
     * A target is the text before any alias or heading, so {@code [[20261017-vector-clocks#Merging|merge]]} names
     * {@code 20261017-vector-clocks}. A link to a heading of the note itself, such as {@code [[#Merging]]}, names no
-    * target.
+    * target and is not listed.
     * </p>
     *
     * <p>
@@ -37,15 +37,17 @@ public class Wikilinks {
     * </p>
     *
     * @param lines the body lines, consumed here, in order.
-    * @return the targets in the order they appear, trimmed; repeated when a target is linked more than once.
+    * @return the links in the order they appear, targets trimmed; one per occurrence, so a target linked twice is
+    *         listed twice.
     */
-   public static Stream<String> targets(Stream<Line> lines) {
-      return lines.map(Line::text)
-            .filter(new OutsideFences())
-            .map(text -> INLINE_CODE.matcher(text).replaceAll(""))
-            .flatMap(text -> LINK.matcher(text).results())
-            .map(match -> match.group(1).strip())
-            .filter(target -> !target.isEmpty());
+   public static Stream<Wikilink> links(Stream<Line> lines) {
+      // Stateful, so the stream must stay sequential.
+      // Whether a line is code depends on the fences before it.
+      OutsideFences outside = new OutsideFences();
+      return lines.filter(outside::test)
+            .flatMap(line -> LINK.matcher(INLINE_CODE.matcher(line.text()).replaceAll("")).results()
+                  .map(match -> new Wikilink(match.group(1).strip(), line.number())))
+            .filter(link -> !link.target().isEmpty());
    }
 
    /**
@@ -79,6 +81,14 @@ public class Wikilinks {
             return false;
          }
          return fence == 0;
+      }
+
+      /**
+       * @param line the next line of the body.
+       * @return whether the line is outside a block; fence lines are never.
+       */
+      public boolean test(Line line) {
+         return test(line.text());
       }
    }
 }

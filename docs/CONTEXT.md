@@ -15,7 +15,7 @@ A Markdown file in the knowledge base, typed by its location.
 
 **Wikilink**:
 A `[[target]]` outside fenced code and inline code, naming a note by its file name without `.md`; text after `|` or `#` is ignored.
-_Avoid_: link (alone, when the kind matters)
+_Avoid_: link (alone, when it could mean another edge)
 
 **Task**:
 A Taskwarrior task in any status; ztk requires it to have a project.
@@ -57,6 +57,10 @@ _Avoid_: weekly status, report file
 
 **Node**:
 A task, note or project as one point of the graph.
+
+**Kind**:
+What a node is: a task, a note, a project, or a **Dangling link**'s target; the prefix of its node ID (`dangling:<target>` for the last). A note's **type** (zettel, paper, task note…) is a separate thing.
+_Avoid_: entity, node type
 
 **Node ID**:
 The kind-prefixed name of a node, printed as `task:<uuid>`, `note:<path without .md>` or `project:<name>`; as input the prefix is optional for tasks (a number) and notes (a name).

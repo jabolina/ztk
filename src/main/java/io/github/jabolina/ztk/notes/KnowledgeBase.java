@@ -109,15 +109,32 @@ public final class KnowledgeBase {
     * @throws UncheckedIOException when a folder of the knowledge base cannot be listed.
     */
    public <R> Stream<R> read(String project, BiFunction<Note, Stream<Line>, Optional<R>> reader, Consumer<NoteWarning> warnings) {
+      return projectFolder(project)
+            .map(folder -> walk(folder, reader, warnings))
+            .orElseGet(Stream::empty);
+   }
+
+   /**
+    * Finds the folder holding a project's notes.
+    *
+    * <p>
+    * It is the folder named after the project at the root of the knowledge base. A configured folder, such as
+    * {@code zettel}, is never a project's, even when a project has its name.
+    * </p>
+    *
+    * @param project the Taskwarrior project, e.g. {@code Alpha}.
+    * @return the folder; empty when there is none, or the name is not a single folder name.
+    */
+   public Optional<Path> projectFolder(String project) {
       Path folder = configuration.dataLocation().resolve(project).normalize();
       // Only a direct child of the knowledge base is a project folder: "../x" or "a/b" never name one, and neither does
       // a configured folder such as "goals".
       if (!configuration.dataLocation().equals(folder.getParent())
             || reserved.contains(folder.getFileName())
             || !Files.isDirectory(folder)) {
-         return Stream.empty();
+         return Optional.empty();
       }
-      return walk(folder, reader, warnings);
+      return Optional.of(folder);
    }
 
    /**
@@ -300,6 +317,16 @@ public final class KnowledgeBase {
    private String name(Path file) {
       String relative = configuration.dataLocation().relativize(file).toString();
       return relative.substring(0, relative.length() - EXTENSION.length());
+   }
+
+   /**
+    * Gives the location of a file named relative to the knowledge base, as a task's {@code note} attribute names it.
+    *
+    * @param relative the path relative to {@code data.location}, e.g. {@code Alpha/fix-bug.md}.
+    * @return its absolute path; the file may not exist.
+    */
+   public Path resolve(String relative) {
+      return configuration.dataLocation().resolve(relative).normalize();
    }
 
    /**

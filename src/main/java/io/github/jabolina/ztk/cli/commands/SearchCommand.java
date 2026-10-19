@@ -77,13 +77,7 @@ public class SearchCommand implements Command<ZtkInvocation> {
       ObjectNode json = invocation.jsonResult();
       ArrayNode results = json.putArray("results");
       // Always present, so agents can rely on the key. People see the warnings on stderr instead.
-      ArrayNode warnings = json.putArray("warnings");
-      Consumer<NoteWarning> warningConsumer = warning -> {
-         warning.writeJson(warnings.addObject());
-         if (!invocation.context().json()) {
-            invocation.printErr("warning: " + warning.path() + ": " + warning.message());
-         }
-      };
+      Consumer<NoteWarning> warningConsumer = invocation.warnings(json);
 
       List<Match> matches;
       // Must ensure the search stream is closed.

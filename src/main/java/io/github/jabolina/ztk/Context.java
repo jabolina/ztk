@@ -6,6 +6,7 @@ import java.util.Properties;
 
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.configuration.ConfigurationLoader;
+import io.github.jabolina.ztk.graph.Graph;
 import io.github.jabolina.ztk.notes.KnowledgeBase;
 import io.github.jabolina.ztk.notes.Papers;
 import io.github.jabolina.ztk.notes.Zettels;
@@ -35,6 +36,7 @@ public final class Context {
    private Zettels zettels;
    private Search search;
    private Papers papers;
+   private Graph graph;
 
    /**
     * @param env the process environment.
@@ -114,6 +116,17 @@ public final class Context {
          papers = new Papers(configuration(), Clock.systemDefaultZone());
       }
       return papers;
+   }
+
+   /**
+    * @return the graph of the knowledge base, created on first use.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public Graph graph() {
+      if (graph == null) {
+         graph = new Graph(new KnowledgeBase(configuration()), store());
+      }
+      return graph;
    }
 
    /**

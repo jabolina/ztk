@@ -89,6 +89,13 @@ public sealed interface Note extends JsonWritable {
    }
 
    /**
+    * @return the node ID, e.g. {@code note:zettel/20261015-causality}.
+    */
+   default String id() {
+      return "note:" + header().name();
+   }
+
+   /**
     * @return the note's common data.
     */
    Header header();

@@ -1,8 +1,8 @@
 package io.github.jabolina.ztk.cli;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -20,7 +20,9 @@ import org.aesh.readline.prompt.Prompt;
 import org.aesh.terminal.KeyAction;
 
 import io.github.jabolina.ztk.Context;
+import io.github.jabolina.ztk.notes.NoteWarning;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -197,18 +199,20 @@ public final class ZtkInvocation implements CommandInvocation {
    }
 
    /**
-    * Prints the result of a command that produces a file: the bare path on stdout, the human message on stderr.
+    * Reports the notes skipped while reading the knowledge base: in a {@code warnings} array of the JSON result, and
+    * on stderr for people.
     *
-    * <p>
-    * Unlike {@link #result(String, ObjectNode)}, the path is printed bare even when stdout is not a terminal, so shell
-    * substitutions such as {@code FILE=$(ztk add ...)} keep working.
-    * </p>
-    *
-    * @param path the produced file.
-    * @param message the human message, e.g. {@code Created task 3.}
+    * @param json the JSON result, started with {@link #jsonResult()}. It gets the array, empty when nothing is skipped.
+    * @return the consumer to pass to the knowledge base.
     */
-   public void pathResult(Path path, String message) {
-      printErr(message);
-      println(path.toString());
+   public Consumer<NoteWarning> warnings(ObjectNode json) {
+      // Always present, so agents can rely on the key. People see the warnings on stderr instead.
+      ArrayNode warnings = json.putArray("warnings");
+      return warning -> {
+         warning.writeJson(warnings.addObject());
+         if (!context.json()) {
+            printErr("warning: " + warning.path() + ": " + warning.message());
+         }
+      };
    }
 }

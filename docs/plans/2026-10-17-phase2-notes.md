@@ -8,28 +8,35 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-18, Task 3 done)
+## Where we left off (2026-10-19, Task 4 committed)
 
-Tasks 1 to 3 are done. Task 2 brought in reading the knowledge base and `search`:
+Tasks 1 to 3 are done and committed. Task 2 brought in reading the knowledge base and `search`:
 
-- `notes.KnowledgeBase.read` walks lazily (recursive `Files.list`, hidden folders never entered, `AGENTS.md`/`CLAUDE.md` excluded) and streams each note's body lines to a caller-supplied reader; bodies are never held in memory. `read(project, …)` walks only that project folder (never a reserved one).
+- `notes.KnowledgeBase.read` walks lazily (recursive `Files.list`, hidden folders never entered, `AGENTS.md`/`CLAUDE.md` excluded) and streams each note's body lines to a caller-supplied reader; bodies are never held in memory. `read(project, …)` walks only that project folder (`projectFolder(project)`, never a reserved one).
 - `Note` is a sealed interface: `Note.Header` (name, path, title, modified) plus variants `Note.Task` (UUID), `Note.Paper` (PDF) and `Note.Plain`; `NoteType` is the enum behind `--type`. Types: zettel, paper, task, project, other (reserved folders are `other` until their own types exist).
-- Frontmatter is YAML, falling back to flat `key: value` lines (56 real titles with an unquoted `: `). Unreadable notes (not UTF-8, no permission) are skipped with a `NoteWarning` in JSON `warnings` or on stderr.
-- `search.Search.find(Query, warnings)` returns a sorted stream of `Match` (title match, matching lines, modification time); the command collects it for the JSON and the human `cli.renderer.Table` (built once with `Table.builder()`, render only).
+- Frontmatter is YAML, falling back to flat `key: value` lines (56 real titles with an unquoted `: `). Unreadable notes (not UTF-8, no permission) are skipped with a `NoteWarning` in JSON `warnings` or on stderr (`ZtkInvocation.warnings(json)`, shared by `search` and `graph`).
+- `search.Search.find(Query, warnings)` returns a sorted stream of `Match`; the command collects it for the JSON and the human `cli.renderer.Table`.
 
-Task 3 brought in `paper new`:
+Task 3 brought in `paper new` (`notes.Papers`, `cli.commands.PaperCommand`).
 
-- `notes.Papers.create(pdf, Details)` checks everything first (PDF exists, venue is one visible folder name, title gives a slug, neither target exists), then copies the PDF and writes the note with `NoteFiles.write` (exact name, `CREATE_NEW`). The template is a text block in `Papers`: guidance only, no examples, so new notes do not match topic searches.
-- `cli.commands.PaperCommand` is a group command (`paper new`), like `config`. `Filed` writes `id`/`path`/`pdf`.
-- The "relative path without `.md`" naming rule is in both `KnowledgeBase.name` and `Papers.create`; share it when `graph` needs it a third time.
-- Verified: `search --type paper` read-only on `~/cerebro` (3 notes, `pdf: null`, no warnings); `paper new` only in a scratch knowledge base.
+Task 4 (`graph`) is done and committed (175 tests in the suite).
+
+- `notes.Wikilinks.targets(lines)`: `[[target]]` before `|`/`#`, outside fenced (```` ``` ````/`~~~`, by matching character) and inline code; `[[#heading]]` names nothing.
+- `graph.Graph.walk(Query, warnings)` reads the notes once into a private `Index` (headers and link targets only, built with `collect`; eight maps, a project's tasks are filtered from `tasks` only when it is the start node), then one `task export` of non-deleted tasks. It returns a lazy stream, one depth at a time (`Stream.iterate` over depths), so `--limit` stops the walk.
+- `graph.Node` is sealed: `OfNote`, `OfTask` (with its note: UDA `note`, else `task_uuid`), `OfProject` (with its folder), `OfDangling`. `graph.Reached(node, depth, via)`.
+- `Index.resolve(from, target)` is the only place links are resolved, for both directions: same folder first, then every note of that name, then a task by full or 8-hex UUID, else dangling.
+- `Index.start(id)` takes `note:<path|name>`, a bare name (as a link at the root), `task:<uuid|short|number>`, a bare number, `project:<name>`; none exits 2, several exit 3 listing the IDs.
+- `Graph.Query(start, depth, kinds, types, edges)`: filters apply before `seen`, so excluded nodes are neither listed nor walked through. `--kind`/`--edges` use Æsh `allowedValues`; `--type` reuses `NoteTypeConverter`.
+- `cli.commands.GraphCommand`: `--depth` (default 2, 0 or more), `--limit` (default 50, 1 or more), `truncated` and `hint` in the JSON, the hint also on stderr for people; table DEPTH, KIND, TYPE, TITLE, PATH.
+- Naming: node `kind` (`note`, `task`, `project`, `dangling`) versus note `type`; `check` problems use `code` (not `kind`), so the two never collide.
+- Verified end to end in a scratch knowledge base with its own `TASKRC`/`TASKDATA` (never the real Taskwarrior: `graph` runs `task export`).
 
 **Next steps, in order:**
-1. Task 4 (`graph`), TDD.
+1. Task 5 (`check`), on the same resolution as `graph`: `Index.resolve` and its maps are what `check` needs.
 2. Open question, not done: reject a folder nested inside another (`notes` and `notes/papers`)? The spec only rejects the same folder.
-3. When `graph` arrives, move the warnings consumer from `SearchCommand` to `ZtkInvocation`; reuse `Table` for `graph` and `check`.
-4. Maybe: `--year twenty` prints only Æsh's "Invalid integer value"; a `YearConverter` could name the option and give an example.
-5. Phase 5 migration: existing paper notes have no `pdf` field; set it where a PDF with the same base name sits next to the note.
+3. Maybe: `--year twenty` prints only Æsh's "Invalid integer value"; a `YearConverter` could name the option and give an example.
+4. Phase 5 migration: existing paper notes have no `pdf` field; set it where a PDF with the same base name sits next to the note.
+5. The "relative path without `.md`" naming rule is in both `KnowledgeBase.name` and `Papers.create`; `graph` did not need it (it resolves the UDA with `KnowledgeBase.resolve`).
 
 **Working agreement:** TDD, one test at a time; Claude writes tests and snippets, the user writes production code and runs the tests. Commit once a whole command is done. Verify Æsh/Taskwarrior behavior in the scratchpad, never against real data. Real notes in `~/cerebro` are only read (surveys, final checks), never written; nothing about this work goes there.
 
@@ -53,8 +60,8 @@ Each task is one complete piece of functionality and ends with a commit.
 2. **`search`.** Brings in reading the knowledge base (walk, types, title, warnings). Tracer bullet: one word found in one note. Then AND across lines, phrase, snippets with line numbers, ordering, `--type`, `--project`, task of a task note, no-match exit 0, human table.
 3. **`paper new`.** Built-in template, PDF copy, target from `--venue`/`--year`/title, `pdf` field, existing target exit 3 with nothing written, `-e`. Papers in `search` results carry `pdf`.
 4. **`graph`.** Wikilink parsing (code skipped, `|`/`#`), resolution order, UUID links, `note`/`project` edges from the export, node ID input and its errors, hubs, `--depth`/`--type`/`--edges`, cap and `truncated`, dangling nodes, human table.
-5. **`check`.** On the same resolution as `graph`; severities, exit 3, hints, `--kind`/`--project`, human table.
-6. **Completion.** `graph` node names (file names only, folder-qualified when repeated), task IDs, `project:`; fixed lists for `--type`/`--edges`/`--kind`; `--project`; comma lists.
+5. **`check`.** On the same resolution as `graph`; severities, exit 3, hints, `--code`/`--project`, human table.
+6. **Completion.** `graph` node names (file names only, folder-qualified when repeated), task IDs, `project:`; fixed lists for `--kind`/`--type`/`--edges` and `check --code`; `--project`; comma lists.
 7. **Native smoke test.** The new commands on the binary; `search`/`graph` under 300 ms on a generated 1,000-note knowledge base; completion still under 50 ms.
 
 ## Done when

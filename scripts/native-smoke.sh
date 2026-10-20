@@ -42,6 +42,23 @@ check "$BIN" stop
 ZETTEL=$("$BIN" new "Smoke zettel" | jq -r .path)
 [[ -f "$ZETTEL" ]] || fail "new did not report the zettel path: $ZETTEL"
 
+# paper new fills its built-in template, which must be packed into the native image.
+echo "+ ztk paper new"
+printf '%%PDF-1.4\n' > "$T/raft.pdf"
+PAPER=$("$BIN" paper new "$T/raft.pdf" --title "Smoke Paper" --venue ATC --year 2014 | jq -r .path)
+[[ -f "$PAPER" ]] || fail "paper new did not report the note path: $PAPER"
+
+# A knowledge base of 1,000 linked notes, for reading it and for timing.
+mkdir -p "$T/notes/zettel"
+for i in $(seq 1000); do
+   printf -- '---\ntitle: Note %d\n---\nOn lamport clocks and consensus, part %d.\nSee [[note-%d]] and [[note-%d]].\n' \
+      "$i" "$i" $(( i % 1000 + 1 )) $(( (i + 6) % 1000 + 1 )) > "$T/notes/zettel/note-$i.md"
+done
+echo "+ ztk search / graph / check"
+(( $("$BIN" search lamport clocks | jq '.results | length') > 0 )) || fail "search found nothing"
+(( $("$BIN" graph note-1 | jq '.nodes | length') > 1 )) || fail "graph found no neighbors"
+"$BIN" check >/dev/null || fail "check reported errors in a knowledge base without any"
+
 # Completion: the completers are created by Æsh and must reach Taskwarrior in the native image too.
 echo "+ ztk --aesh-complete"
 # Æsh always adds its file sentinel for commands without a positional argument, the root included.
@@ -51,20 +68,32 @@ echo "+ ztk --aesh-complete"
 [[ $("$BIN" --aesh-complete -- add x project:Sm) == "project:Smoke" ]] || fail "project attribute not completed"
 [[ $("$BIN" --aesh-complete -- add x +we) == "+week" ]] || fail "tag not completed"
 [[ $("$BIN" --aesh-complete -- list Sm) == "Smoke" ]] || fail "project name not completed"
+[[ $("$BIN" --aesh-complete -- graph note-100 | tr '\n' ' ') == "note-100 note-1000 " ]] || fail "note names not completed"
+[[ $("$BIN" --aesh-complete -- graph note-1 --kind note,t) == "note,task" ]] || fail "comma list not completed as a whole word"
 "$BIN" --aesh-completion zsh | grep -q -- "--aesh-complete" || fail "no zsh completion script"
 
 check "$BIN" done 1
 
-# Completion runs on every Tab: each call must stay well under what a person notices.
-per_call() {
-   local start
+# Average milliseconds per run of a command; its failures are caught above, not here.
+per_run() {
+   local runs=$1 start
+   shift
    start=$(date +%s%N)
-   for _ in $(seq 20); do "$BIN" --aesh-complete -- "$@" >/dev/null; done
-   echo $(( ($(date +%s%N) - start) / 20000000 ))
+   for _ in $(seq "$runs"); do "$@" >/dev/null 2>&1 || true; done
+   echo $(( ($(date +%s%N) - start) / runs / 1000000 ))
 }
-SUBCOMMANDS=$(per_call st)
-IDS=$(per_call done "")
-echo "completion: ${SUBCOMMANDS} ms/call for subcommands, ${IDS} ms/call for task IDs"
-(( SUBCOMMANDS <= 50 && IDS <= 50 )) || fail "completion slower than 50 ms per call"
+
+# Completion runs on every Tab: each call must stay well under what a person notices.
+SUBCOMMANDS=$(per_run 20 "$BIN" --aesh-complete -- st)
+IDS=$(per_run 20 "$BIN" --aesh-complete -- done "")
+NODES=$(per_run 20 "$BIN" --aesh-complete -- graph "")
+echo "completion: ${SUBCOMMANDS} ms/call for subcommands, ${IDS} ms/call for task IDs, ${NODES} ms/call for graph nodes"
+(( SUBCOMMANDS <= 50 && IDS <= 50 && NODES <= 50 )) || fail "completion slower than 50 ms per call"
+
+# search and graph read every note, so they must stay quick on a knowledge base of 1,000 notes.
+SEARCH=$(per_run 5 "$BIN" search lamport clocks)
+GRAPH=$(per_run 5 "$BIN" graph note-1)
+echo "1,000 notes: ${SEARCH} ms for search, ${GRAPH} ms for graph"
+(( SEARCH <= 300 && GRAPH <= 300 )) || fail "search or graph slower than 300 ms"
 
 echo "OK"

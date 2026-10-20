@@ -8,7 +8,7 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-19, Task 6 done)
+## Where we left off (2026-10-19, Phase 2 done)
 
 Tasks 1 to 3 are done and committed. Task 2 brought in reading the knowledge base and `search`:
 
@@ -40,15 +40,17 @@ Task 5 (`check`) is done and committed (188 tests in the suite). A short UUID of
 - One problem per wikilink occurrence, at its line. No `invalid-frontmatter`: the fallback reads those notes correctly, and the migration quotes them.
 - Run read-only on the real base (a copy of the Taskwarrior database, `gc`/`recurrence`/`hooks` off): 7 `dangling-link` and 21 `ambiguous-link`, all in `000-Project-Index` (its `[[SKILL]]`/`[[CLAUDE]]`/`[[AGENTS]]` links and per-project `[[ideas]]`/`[[summary]]`/`[[CONTEXT]]`), which the user deletes; 3 `orphan-task-note`. No task problems.
 
-Task 6 (completion) is done, not yet committed (191 tests in the suite). Only behavior ztk controls is tested; Æsh's own matching and fixed lists are not.
+Task 6 (completion) is done and committed (191 tests in the suite). Only behavior ztk controls is tested; Æsh's own matching and fixed lists are not.
 
 - Completers live in `cli.completers` (`ZtkCompleter`, `ZtkCompleterInvocation` and every completer). `NodeCompleter` on `graph`'s argument offers note names from `KnowledgeBase.names()` (files listed, never read; the note filter is shared with the walk), by file name or, when notes in several folders share it, by path; pending task IDs; `project:<name>`. `NoteTypeCompleter` on `--type` (`graph`, `search`); `ProjectCompleter` on `check --project`. `search`'s words and `graph`'s node turn off the file fallback.
 - `TaskStore.ids()` dropped the empty line `task _ids` prints without tasks (an empty candidate for `done <TAB>` too).
 - Comma lists: Æsh's `--aesh-complete` prints a list value without the values before it (`task` for `note,t`), which bash and zsh drop. `Ztk.ContainerBuilder.completers` wraps every list option's completer in `WholeWords`, which prefixes the values Æsh parsed for the option (`ProcessedOption.getValues()`, `getEndsWithSeparator()`). A repeated list option (`--kind a --kind b`) gets no completion. `CompletionTest.aCommaListIsCompletedAsAWholeWord` fails once Æsh prints whole words itself: then delete the wrapper. Reproducer and other Æsh rough edges: `docs/personal.md` (not committed).
 - Real base, read-only (copy of the Taskwarrior database, deleted after): `graph <TAB>` offers 416 candidates (327 bare names, 22 paths for `summary`/`ideas`/`CONTEXT`, 60 IDs, 7 projects), no duplicates; 35 sampled candidates, all paths included, resolve with `graph`.
 
+Task 7 (native smoke test) is done: `scripts/native-smoke.sh` also runs `paper new` (built-in template in the native image), `search`, `graph` and `check` on a generated knowledge base of 1,000 linked notes, `graph` node and comma-list completion, and times them. Native binary, 2026-10-19: completion 2 ms (subcommands), 13 ms (task IDs), 21 ms (graph nodes), against 50 ms; `search` 34 ms and `graph` 46 ms on 1,000 notes, against 300 ms. Every "Done when" item below holds, so Phase 2 is complete.
+
 **Next steps, in order:**
-1. Task 7 (native smoke test); completion of `graph` (a note listing plus `task _ids` and `task _projects`) must stay under 50 ms.
+1. Phase 3 (goals and efforts): plan it first, as Phase 2 was (spec, `CONTEXT.md`, then a plan with its own "Where we left off").
 2. Open question, not done: reject a folder nested inside another (`notes` and `notes/papers`)? The spec only rejects the same folder.
 3. Maybe: `--year twenty` prints only Æsh's "Invalid integer value"; a `YearConverter` could name the option and give an example.
 4. Phase 4: summary notes are hubs in `graph`, like projects (spec §6.2). Seen on the real base: from a task note, depth 2 walks into `000-Project-Index` and `Weekly-Status-*` and out to every task they list; `--depth 1` or `--edges note,project` avoid it until the migration.

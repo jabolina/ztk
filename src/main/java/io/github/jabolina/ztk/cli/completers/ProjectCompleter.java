@@ -1,4 +1,4 @@
-package io.github.jabolina.ztk.cli;
+package io.github.jabolina.ztk.cli.completers;
 
 /**
  * Completes an argument naming a project with the projects that have pending tasks.

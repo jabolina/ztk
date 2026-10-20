@@ -14,11 +14,14 @@ import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandException;
 import org.aesh.command.CommandResult;
 import org.aesh.command.option.Argument;
+import org.aesh.command.option.CompletionFallback;
 import org.aesh.command.option.Option;
 import org.aesh.command.option.OptionList;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
+import io.github.jabolina.ztk.cli.completers.NodeCompleter;
+import io.github.jabolina.ztk.cli.completers.NoteTypeCompleter;
 import io.github.jabolina.ztk.cli.converters.NoteTypeConverter;
 import io.github.jabolina.ztk.cli.renderer.Table;
 import io.github.jabolina.ztk.graph.Graph;
@@ -65,7 +68,7 @@ public final class GraphCommand implements Command<ZtkInvocation> {
          .build();
 
    @Argument(description = "The node to start from: note:<path|name> or a name, task:<uuid|number> or a number, "
-         + "or project:<name>", required = true)
+         + "or project:<name>", required = true, completer = NodeCompleter.class, completeFallback = CompletionFallback.NONE)
    String node;
 
    @Option(defaultValue = "2", description = "How many edges away from the node to go, e.g., 1 for its neighbors only")
@@ -75,7 +78,7 @@ public final class GraphCommand implements Command<ZtkInvocation> {
          description = "Only walk through nodes of these kinds, comma-separated, e.g., 'note,task'")
    List<String> kinds;
 
-   @OptionList(name = "type", converter = NoteTypeConverter.class,
+   @OptionList(name = "type", converter = NoteTypeConverter.class, completer = NoteTypeCompleter.class,
          description = "Only walk through notes of these types, comma-separated, e.g., 'zettel,paper'")
    List<NoteType> types;
 

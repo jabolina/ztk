@@ -10,8 +10,8 @@ import org.aesh.command.option.Arguments;
 import org.aesh.command.option.CompletionFallback;
 
 import io.github.jabolina.ztk.cli.ArgumentGuard;
-import io.github.jabolina.ztk.cli.AttributeCompleter;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
+import io.github.jabolina.ztk.cli.completers.AttributeCompleter;
 import io.github.jabolina.ztk.tasks.TaskNote;
 import tools.jackson.databind.node.ObjectNode;
 

@@ -115,6 +115,23 @@ public final class KnowledgeBase {
    }
 
    /**
+    * Lists the names of every note, without reading the notes.
+    *
+    * <p>
+    * Cheap enough to run on every keystroke, e.g. to complete a note name.
+    * </p>
+    *
+    * @return each note's path relative to {@code data.location} without {@code .md}, e.g. {@code Alpha/fix-bug}, in no
+    *         particular order.
+    * @throws UncheckedIOException when a folder of the knowledge base cannot be listed.
+    */
+   public List<String> names() {
+      try (Stream<Path> notes = notes(configuration.dataLocation())) {
+         return notes.map(this::name).toList();
+      }
+   }
+
+   /**
     * Finds the folder holding a project's notes.
     *
     * <p>
@@ -149,12 +166,23 @@ public final class KnowledgeBase {
     */
    private <R> Stream<R> walk(Path root, BiFunction<Note, Stream<Line>, Optional<R>> reader, Consumer<NoteWarning> warnings) {
       // The walk's close handler carries over to the returned pipeline: closing it closes the walk.
+      return notes(root)
+            .map(file -> read(file, reader, warnings))
+            .flatMap(Optional::stream);
+   }
+
+   /**
+    * Lists the note files under a folder, without reading them.
+    *
+    * @param root the folder to list, inside {@code data.location}.
+    * @return the files that are notes, listed as the stream is consumed. It must be closed.
+    * @throws UncheckedIOException when the folder cannot be listed.
+    */
+   private static Stream<Path> notes(Path root) {
       return files(root)
             .filter(file -> file.getFileName().toString().endsWith(EXTENSION))
             .filter(file -> !NOT_NOTES.contains(file.getFileName().toString()))
-            .filter(Files::isRegularFile)
-            .map(file -> read(file, reader, warnings))
-            .flatMap(Optional::stream);
+            .filter(Files::isRegularFile);
    }
 
    /**

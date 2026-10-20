@@ -10,12 +10,14 @@ import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.option.Arguments;
+import org.aesh.command.option.CompletionFallback;
 import org.aesh.command.option.Option;
 import org.aesh.command.option.OptionList;
 
 import io.github.jabolina.ztk.cli.ArgumentGuard;
-import io.github.jabolina.ztk.cli.ProjectCompleter;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
+import io.github.jabolina.ztk.cli.completers.NoteTypeCompleter;
+import io.github.jabolina.ztk.cli.completers.ProjectCompleter;
 import io.github.jabolina.ztk.cli.converters.NoteTypeConverter;
 import io.github.jabolina.ztk.cli.renderer.Table;
 import io.github.jabolina.ztk.notes.NoteType;
@@ -55,11 +57,11 @@ public class SearchCommand implements Command<ZtkInvocation> {
          .build();
 
    @Arguments(description = "The words to find; quote words to find them as a phrase, e.g., 'lamport clocks'",
-         validator = ArgumentGuard.class, required = true)
+         validator = ArgumentGuard.class, required = true, completeFallback = CompletionFallback.NONE)
    List<String> words;
 
-   @OptionList(name = "type", description = "Only search notes of these types, comma-separated, e.g., 'zetel,paper'",
-         converter = NoteTypeConverter.class)
+   @OptionList(name = "type", description = "Only search notes of these types, comma-separated, e.g., 'zettel,paper'",
+         converter = NoteTypeConverter.class, completer = NoteTypeCompleter.class)
    List<NoteType> types;
 
    @Option(name = "project", completer = ProjectCompleter.class, description = "Only search the notes of this project, e.g., 'Alpha'")

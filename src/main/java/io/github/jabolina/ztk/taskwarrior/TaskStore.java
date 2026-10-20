@@ -89,7 +89,9 @@ public final class TaskStore {
     */
    public List<String> ids() {
       // A helper command for shell completion: one ID per line, without a report around it.
-      return run(List.of("_ids")).lines().toList();
+      return run(List.of("_ids")).lines()
+            .filter(id -> !id.isBlank())
+            .toList();
    }
 
    /**

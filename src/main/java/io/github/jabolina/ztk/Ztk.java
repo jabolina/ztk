@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 import org.aesh.AeshRuntimeRunner;
 import org.aesh.command.Command;
@@ -12,6 +13,7 @@ import org.aesh.command.completer.CompleterInvocation;
 import org.aesh.command.completer.OptionCompleter;
 import org.aesh.command.container.CommandContainer;
 import org.aesh.command.impl.container.AeshCommandContainerBuilder;
+import org.aesh.command.impl.internal.OptionType;
 import org.aesh.command.impl.internal.ProcessedCommand;
 import org.aesh.command.impl.internal.ProcessedOption;
 import org.aesh.command.impl.parser.CommandLineParser;
@@ -22,9 +24,9 @@ import org.aesh.command.validator.OptionValidatorException;
 
 import io.github.jabolina.ztk.Context.OutputMode;
 import io.github.jabolina.ztk.cli.ZtkCommand;
-import io.github.jabolina.ztk.cli.ZtkCompleter;
-import io.github.jabolina.ztk.cli.ZtkCompleterInvocation;
+import io.github.jabolina.ztk.cli.completers.ZtkCompleterInvocation;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
+import io.github.jabolina.ztk.cli.completers.ZtkCompleter;
 
 /**
  * Entry point of the {@code ztk} command line.
@@ -233,8 +235,13 @@ public final class Ztk {
        * are. Failures, such as a missing configuration, leave the completer without candidates.
        * </p>
        *
+       * <p>
+       * The completer of a list option is wrapped once more, so its candidates are whole words.
+       * </p>
+       *
        * @param parser the parser of the command.
        */
+      @SuppressWarnings("unchecked")
       private void completers(CommandLineParser<ZtkInvocation> parser) {
          ProcessedCommand<Command<ZtkInvocation>, ZtkInvocation> command = parser.getProcessedCommand();
          List<ProcessedOption> options = new ArrayList<>(command.getOptions());
@@ -258,12 +265,57 @@ public final class Ztk {
                };
                option.setCompleter(withContext);
             }
+
+            // The ZtkCompleter is wrapped first, so the values it offers are made whole words too.
+            // Options without a completer offer nothing, and stay so.
+            if (option.getOptionType() == OptionType.LIST && option.completer() != null && !(option.completer() instanceof WholeWords)) {
+               option.setCompleter(new WholeWords(option, option.completer()));
+            }
          }
 
          if (parser.getChildParsers() != null) {
             for (CommandLineParser<ZtkInvocation> child : parser.getChildParsers()) {
                completers(child);
             }
+         }
+      }
+
+      /**
+       * Completes a value of a list option as the whole word typed so far.
+       *
+       * <p>
+       * Æsh's shell completion prints a list value without those typed before it, e.g. {@code task} for {@code note,t},
+       * and the shells drop a candidate that does not start with the whole word. Each candidate therefore gets the values
+       * typed before it, e.g. {@code note,task}. When the option is repeated, its values from every occurrence are
+       * merged, so the candidates match no word and the shell offers none.
+       * </p>
+       *
+       * @param option the list option completed.
+       * @param completer the option's own completer, which completes one value.
+       */
+      private record WholeWords(ProcessedOption option, OptionCompleter<CompleterInvocation> completer)
+            implements OptionCompleter<CompleterInvocation> {
+
+         @Override
+         public void complete(CompleterInvocation invocation) {
+            completer.complete(invocation);
+
+            // While completing, the option holds the values of the word parsed so far.
+            // The one being typed is the last, unless the word ends with the separator.
+            List<String> values = option.getValues();
+            List<String> typedBefore = option.getEndsWithSeparator() || values.isEmpty()
+                  ? values
+                  : values.subList(0, values.size() - 1);
+            String before = typedBefore.stream()
+                  .map(value -> value + option.getValueSeparator())
+                  .collect(Collectors.joining());
+            List<String> words = invocation.getCompleterValues().stream()
+                  .map(value -> before + value.getCharacters())
+                  .toList();
+
+            // Setting the values adds to those already there.
+            invocation.clearCompleterValues();
+            invocation.setCompleterValues(words);
          }
       }
    }

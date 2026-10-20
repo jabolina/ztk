@@ -2,6 +2,8 @@ package io.github.jabolina.ztk.cli;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
 
@@ -97,6 +99,41 @@ class CompletionTest {
    }
 
    @Test
+   void graphOffersNoteNamesTaskIdsAndProjects() throws IOException {
+      taskwarrior.task("add", "first", "project:Alpha");
+      note("zettel/20261015-causality.md");
+      note("Alpha/fix-bug.md");
+
+      Result result = complete("graph", "");
+
+      assertThat(result.exitCode()).isZero();
+      // Each candidate as graph takes it, and no file names next to them.
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("20261015-causality", "fix-bug", "1", "project:Alpha");
+   }
+
+   @Test
+   void aNoteNameInSeveralFoldersIsOfferedByItsPaths() throws IOException {
+      note("Alpha/summary.md");
+      note("Beta/summary.md");
+      note("zettel/20261015-causality.md");
+
+      Result result = complete("graph", "");
+
+      assertThat(result.exitCode()).isZero();
+      // A bare "summary" names both notes, which graph rejects as ambiguous.
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("Alpha/summary", "Beta/summary", "20261015-causality");
+   }
+
+   @Test
+   void aCommaListIsCompletedAsAWholeWord() {
+      Result result = complete("graph", "fix-bug", "--kind", "note,t");
+
+      assertThat(result.exitCode()).isZero();
+      // The shells replace the whole word, so a bare "task" would not match what was typed, and be dropped.
+      assertThat(result.out().lines()).containsExactly("note,task");
+   }
+
+   @Test
    void withoutConfigurationCompletionStaysQuiet() {
       // No ZTKRC and an empty HOME: no configuration can be found.
       Properties env = new Properties();
@@ -108,6 +145,18 @@ class CompletionTest {
       // Without task IDs Æsh offers the command's options instead, so stdout is not checked.
       assertThat(result.exitCode()).isZero();
       assertThat(result.err()).isEmpty();
+   }
+
+   /**
+    * Writes a note into the fixture's knowledge base.
+    *
+    * @param relative the note's path relative to the knowledge base, e.g. {@code Alpha/fix-bug.md}.
+    * @throws IOException when the note cannot be written.
+    */
+   private void note(String relative) throws IOException {
+      Path file = taskwarrior.dataLocation().resolve(relative);
+      Files.createDirectories(file.getParent());
+      Files.writeString(file, "# " + file.getFileName() + "\n");
    }
 
    /**

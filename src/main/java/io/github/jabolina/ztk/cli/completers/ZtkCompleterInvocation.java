@@ -1,4 +1,4 @@
-package io.github.jabolina.ztk.cli;
+package io.github.jabolina.ztk.cli.completers;
 
 import java.util.Collection;
 import java.util.List;

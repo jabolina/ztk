@@ -102,7 +102,7 @@ public final class Context {
     */
    public Search search() {
       if (search == null) {
-         search = new Search(new KnowledgeBase(configuration()));
+         search = new Search(knowledgeBase());
       }
       return search;
    }
@@ -118,6 +118,14 @@ public final class Context {
    }
 
    /**
+    * @return the notes of the knowledge base, read anew on each use.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public KnowledgeBase knowledgeBase() {
+      return new KnowledgeBase(configuration());
+   }
+
+   /**
     * Reads the graph of the knowledge base: its notes, and the tasks and projects of Taskwarrior.
     *
     * <p>
@@ -129,7 +137,7 @@ public final class Context {
     *                      {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails.
     */
    public KnowledgeGraph graph() {
-      return KnowledgeGraph.read(new KnowledgeBase(configuration()), store());
+      return KnowledgeGraph.read(knowledgeBase(), store());
    }
 
    /**

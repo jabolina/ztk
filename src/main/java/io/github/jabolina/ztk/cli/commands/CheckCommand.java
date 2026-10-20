@@ -15,6 +15,7 @@ import org.aesh.command.option.OptionList;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
+import io.github.jabolina.ztk.cli.completers.ProjectCompleter;
 import io.github.jabolina.ztk.cli.renderer.Table;
 import io.github.jabolina.ztk.graph.Check;
 import io.github.jabolina.ztk.graph.Problem;
@@ -56,7 +57,7 @@ public final class CheckCommand implements Command<ZtkInvocation> {
          "orphan-task-note", "unreadable-note" }, description = "Only report problems with these codes, comma-separated")
    List<String> codes;
 
-   @Option(description = "Only report problems of this project's notes and tasks, e.g., 'Alpha'")
+   @Option(description = "Only report problems of this project's notes and tasks, e.g., 'Alpha'", completer = ProjectCompleter.class)
    String project;
 
    @Override

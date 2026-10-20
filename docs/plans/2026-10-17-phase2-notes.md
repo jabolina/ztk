@@ -8,7 +8,7 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-19, Task 5 done)
+## Where we left off (2026-10-19, Task 6 done)
 
 Tasks 1 to 3 are done and committed. Task 2 brought in reading the knowledge base and `search`:
 
@@ -32,7 +32,7 @@ Task 4 (`graph`) is done and committed (175 tests in the suite).
 - Naming: node `kind` (`note`, `task`, `project`, `dangling`) versus note `type`; `check` problems use `code` (not `kind`), so the two never collide.
 - Verified end to end in a scratch knowledge base with its own `TASKRC`/`TASKDATA` (never the real Taskwarrior: `graph` runs `task export`).
 
-Task 5 (`check`) is done, not yet committed (188 tests in the suite). A short UUID of eight digits used to read as a task number only; `matches` now tries both (a flaky Task 4 test, made deterministic with `task import`).
+Task 5 (`check`) is done and committed (188 tests in the suite). A short UUID of eight digits used to read as a task number only; `matches` now tries both (a flaky Task 4 test, made deterministic with `task import`).
 
 - `graph.Problem` is sealed, one record per code: `DanglingLink`, `AmbiguousLink` (with `candidates`), `MissingNote`, `TaskWithoutProject`, `OrphanTaskNote`, `UnreadableNote`; sub-interfaces `InLink` (id, path, line from the wikilink) and `InTask` (id, path from the task). Each record writes its own message and hint; `writeJson` writes every field, empty ones as null.
 - `graph.Check(graph).problems(Filter)`: one detector per fact (links, missing notes and tasks without project of open tasks — `Task.open()` —, orphan task notes, skipped notes), filtered by `Check.Filter(codes, project)` and sorted errors first, then path (none last), line, id, code. `--project` keeps a task's problems by its project and the rest by path under the project folder; a project with no task and no folder exits 2.
@@ -40,8 +40,15 @@ Task 5 (`check`) is done, not yet committed (188 tests in the suite). A short UU
 - One problem per wikilink occurrence, at its line. No `invalid-frontmatter`: the fallback reads those notes correctly, and the migration quotes them.
 - Run read-only on the real base (a copy of the Taskwarrior database, `gc`/`recurrence`/`hooks` off): 7 `dangling-link` and 21 `ambiguous-link`, all in `000-Project-Index` (its `[[SKILL]]`/`[[CLAUDE]]`/`[[AGENTS]]` links and per-project `[[ideas]]`/`[[summary]]`/`[[CONTEXT]]`), which the user deletes; 3 `orphan-task-note`. No task problems.
 
+Task 6 (completion) is done, not yet committed (191 tests in the suite). Only behavior ztk controls is tested; Æsh's own matching and fixed lists are not.
+
+- Completers live in `cli.completers` (`ZtkCompleter`, `ZtkCompleterInvocation` and every completer). `NodeCompleter` on `graph`'s argument offers note names from `KnowledgeBase.names()` (files listed, never read; the note filter is shared with the walk), by file name or, when notes in several folders share it, by path; pending task IDs; `project:<name>`. `NoteTypeCompleter` on `--type` (`graph`, `search`); `ProjectCompleter` on `check --project`. `search`'s words and `graph`'s node turn off the file fallback.
+- `TaskStore.ids()` dropped the empty line `task _ids` prints without tasks (an empty candidate for `done <TAB>` too).
+- Comma lists: Æsh's `--aesh-complete` prints a list value without the values before it (`task` for `note,t`), which bash and zsh drop. `Ztk.ContainerBuilder.completers` wraps every list option's completer in `WholeWords`, which prefixes the values Æsh parsed for the option (`ProcessedOption.getValues()`, `getEndsWithSeparator()`). A repeated list option (`--kind a --kind b`) gets no completion. `CompletionTest.aCommaListIsCompletedAsAWholeWord` fails once Æsh prints whole words itself: then delete the wrapper. Reproducer and other Æsh rough edges: `docs/personal.md` (not committed).
+- Real base, read-only (copy of the Taskwarrior database, deleted after): `graph <TAB>` offers 416 candidates (327 bare names, 22 paths for `summary`/`ideas`/`CONTEXT`, 60 IDs, 7 projects), no duplicates; 35 sampled candidates, all paths included, resolve with `graph`.
+
 **Next steps, in order:**
-1. Commit Task 5, then Task 6 (completion), then Task 7 (native smoke test).
+1. Task 7 (native smoke test); completion of `graph` (a note listing plus `task _ids` and `task _projects`) must stay under 50 ms.
 2. Open question, not done: reject a folder nested inside another (`notes` and `notes/papers`)? The spec only rejects the same folder.
 3. Maybe: `--year twenty` prints only Æsh's "Invalid integer value"; a `YearConverter` could name the option and give an example.
 4. Phase 4: summary notes are hubs in `graph`, like projects (spec §6.2). Seen on the real base: from a task note, depth 2 walks into `000-Project-Index` and `Weekly-Status-*` and out to every task they list; `--depth 1` or `--edges note,project` avoid it until the migration.

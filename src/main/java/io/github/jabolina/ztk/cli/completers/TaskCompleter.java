@@ -1,4 +1,4 @@
-package io.github.jabolina.ztk.cli;
+package io.github.jabolina.ztk.cli.completers;
 
 /**
  * Completes an argument naming a task with the IDs of the tasks that have one.

@@ -6,8 +6,8 @@ import org.aesh.command.CommandResult;
 import org.aesh.command.option.Argument;
 import org.aesh.command.option.CompletionFallback;
 
-import io.github.jabolina.ztk.cli.TaskCompleter;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
+import io.github.jabolina.ztk.cli.completers.TaskCompleter;
 import io.github.jabolina.ztk.taskwarrior.Task;
 
 @CommandDefinition(name = "done", description = "Complete a task", generateHelp = true)

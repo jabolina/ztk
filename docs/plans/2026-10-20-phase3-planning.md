@@ -8,17 +8,22 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-20, Task 1 done)
+## Where we left off (2026-10-20, Task 2 done)
 
-The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. Task 1 (Goals) is done: `goal new|set|list|info`, and goal notes read as `goal:` nodes in `search`. Next: Task 2 (Efforts and their tasks).
+The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. Task 1 (Goals) and Task 2 (Efforts and their tasks) are done: `goal new|set|list|info`, `effort new|set|list|info|assign|unassign`, `add --effort`, `effort` in the common task shape, and goal and effort notes read as `goal:`/`effort:` nodes in `search`. Next: Task 3 (Graph and check).
 
-What Task 1 left in place for the next tasks:
+How `planning` is put together (agreed before Task 2; keep it this way):
 
-- `planning` package: `Goals` (create, update, list, info; implements `notes.PlanningNotes`), `Goal`, `GoalStatus` (`Labeled`, `closed()`), sealed `Period` (`OfYear`/`OfQuarter`, `folder`, `end`, `ofYear`, `quarters`), package-private `Levels` (which files are goals). `Goals` methods take records (`Details`, `Changes`), never `Optional` parameters.
-- `notes.PlanningNotes` is how the knowledge base learns which notes are goals without knowing the layout; Task 2 adds `effort(Path)` to it, and may let it skip material folders during scans.
-- `util`: `Frontmatter` (read, parse, render, `update` in place keeping the body byte for byte, `timestamp`), `Slugs` (`of`, `of(text, max)`, `valid`), `Labeled` (lowercase enum labels, `parse`, `labels`).
-- Until Task 3, a goal note is a `note`-kind graph node with a `goal:` ID, and `graph` does not find it by file name.
-- Unreadable goal files fail the command, naming the file; Task 3's `check` reports them.
+- Use cases on top, readers underneath, and use cases never call each other. Public: `Goals`, `Efforts` (use cases), `Levels` (the only `notes.PlanningNotes` adapter: which notes are goals or efforts), and value types (`Goal`, `Effort`, `GoalStatus`, `EffortStatus`, `Period`, `Saved`, `TaskCounts`, the nested records). Package-private readers: `GoalNotes` (`find`, `of(period)`, `period(id)`), `EffortNotes` (`find`, `all`; works out quarter and carried over from the goal ID), `EffortTasks` (one export: `counts()`, `of(slug)` with `effort.is:`). `PlanningStatus` holds the `closed` rule for both statuses.
+- `Goals` reads efforts through `EffortNotes`/`EffortTasks`, not `Efforts`; `Efforts` reads goals through `GoalNotes`. Planning depends on tasks (`Efforts.add` calls `Tasks.add`), never the reverse. Both reach Taskwarrior through `Supplier<TaskStore>`, so commands that need no tasks never start it.
+- `PlanningNotes.planned(Path)` returns the note type and node ID; `Note.Planning` is the variant for goal and effort notes. A broader "note types as a seam" refactor of `KnowledgeBase` was discussed and put off: assess at the end of Phase 3 with the rest of the codebase.
+
+What Task 3 builds on:
+
+- Until Task 3, goal and effort notes are `note`-kind graph nodes with `goal:`/`effort:` IDs, and `graph` does not find them by file name.
+- Unreadable goal or effort files fail the command, naming the file; Task 3's `check` reports them.
+- Taskwarrior: `effort:x` filters by prefix (use `effort.is:`); `modify effort:` clears it; abbreviations down to `ef:` set it.
+- Left as small duplicates for the end-of-phase review: the status parsers in `GoalCommand`/`EffortCommand`, and `checked(slug)` in `Goals`/`Efforts` (different hints).
 
 **Working agreement:** TDD; Claude writes tests and snippets, the user writes production code and runs the tests. Tasks are large: inside one, walk in larger strides (several behaviors per step when they are mechanical). Commit once a whole task is done. Verify Æsh/Taskwarrior behavior in the scratchpad, never against real data. Real notes in `~/cerebro` are only read, never written; nothing about this work goes there.
 

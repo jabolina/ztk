@@ -60,7 +60,7 @@ public final class KnowledgeBase {
 
    /**
     * @param configuration the configuration giving the knowledge base location and its folders.
-    * @param planning recognizes the notes that are planning items, such as goals.
+    * @param planning recognizes the notes that are planning items, such as goals and efforts.
     */
    public KnowledgeBase(Configuration configuration, PlanningNotes planning) {
       this.configuration = configuration;
@@ -256,13 +256,13 @@ public final class KnowledgeBase {
 
          // Read from the note itself, so search never needs Taskwarrior.
          Optional<String> task = frontmatter.path("task_uuid").asStringOpt();
-         Optional<String> goal = planning.goal(file);
+         Optional<PlanningNotes.Planned> planned = planning.planned(file);
          Note.Header header = new Note.Header(name(file), file, title, Files.getLastModifiedTime(file).toInstant());
-         NoteType type = type(file, task.isPresent(), goal.isPresent());
+         NoteType type = planned.map(PlanningNotes.Planned::type).orElseGet(() -> type(file, task.isPresent()));
          Note note = switch (type) {
             case TASK -> new Note.Task(header, task.orElseThrow());
             case PAPER -> new Note.Paper(header, frontmatter.path("pdf").asStringOpt().map(file::resolveSibling));
-            case GOAL -> new Note.Goal(header, goal.orElseThrow());
+            case GOAL, EFFORT -> new Note.Planning(header, type, planned.orElseThrow().id());
             default -> new Note.Plain(header, type);
          };
 
@@ -317,18 +317,15 @@ public final class KnowledgeBase {
    }
 
    /**
-    * Gives the type of a note from the folder it lives in.
+    * Gives the type of a note that is no planning item from the folder it lives in.
     *
     * @param file the note's file.
     * @param taskNote whether the note names a task in its frontmatter.
-    * @param goal whether the note is a goal's own note.
     * @return the note type.
     */
-   private NoteType type(Path file, boolean taskNote, boolean goal) {
-      // Any other note under the goals folder is material: the folder is reserved, so it reads as other below.
-      if (goal) {
-         return NoteType.GOAL;
-      }
+   private NoteType type(Path file, boolean taskNote) {
+      // Material under the goals and efforts folders is not a planning item: the folders are reserved, so it reads as
+      // other below.
       Folders folders = configuration.folders();
       if (file.startsWith(folders.zettel())) {
          return NoteType.ZETTEL;

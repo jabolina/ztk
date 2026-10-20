@@ -64,6 +64,14 @@ public sealed interface Period {
    LocalDate end();
 
    /**
+    * Tells whether a quarter is within this period.
+    *
+    * @param quarter the quarter, e.g. {@code 2026-Q4}.
+    * @return whether it is this quarter, or one of the four quarters of this year.
+    */
+   boolean contains(OfQuarter quarter);
+
+   /**
     * A calendar year, the period of yearly goals.
     *
     * @param year The year.
@@ -83,6 +91,11 @@ public sealed interface Period {
       @Override
       public LocalDate end() {
          return year.atMonth(12).atEndOfMonth();
+      }
+
+      @Override
+      public boolean contains(OfQuarter quarter) {
+         return quarter.year().equals(year);
       }
 
       /**
@@ -117,6 +130,11 @@ public sealed interface Period {
       @Override
       public LocalDate end() {
          return year.atMonth(quarter * 3).atEndOfMonth();
+      }
+
+      @Override
+      public boolean contains(OfQuarter quarter) {
+         return equals(quarter);
       }
 
       @Override

@@ -586,6 +586,80 @@ class GoalCommandTest {
             .anySatisfy(line -> assertThat(line).startsWith("  2026-Q4-G1").contains("Fix found data loss bugs"));
    }
 
+   @Test
+   void goalListCountsTheEffortsOfEachGoalAndOfAYearlyGoalThroughItsQuarterlyGoals() throws IOException {
+      run("goal", "new", "2026", "--title", "Infinispan provably correct");
+      run("goal", "new", "2026-Q3", "--title", "Fix bugs", "--parent", "2026-G1");
+      run("goal", "new", "2026-Q4", "--title", "Fix found data loss bugs", "--parent", "2026-G1");
+      effort("summer-demo", "done", "2026-Q3-G1");
+      effort("infinijepsen-demo", "active", "2026-Q4-G1");
+      effort("raft-demo", "dropped", "2026-Q4-G1");
+
+      JsonNode year = JSON.readTree(run("goal", "list", "2026").out()).path("goals");
+      JsonNode quarter = JSON.readTree(run("goal", "list", "2026-Q4").out()).path("goals");
+
+      // Any status: closed efforts are part of what the goal got.
+      assertThat(year.valueStream().map(goal -> goal.path("id").asString() + " " + goal.path("efforts").asInt()))
+            .containsExactly("goal:2026-G1 3", "goal:2026-Q3-G1 1", "goal:2026-Q4-G1 2");
+      // A quarter counts, under the yearly goal, only the quarterly goals it lists.
+      assertThat(quarter.valueStream().map(goal -> goal.path("id").asString() + " " + goal.path("efforts").asInt()))
+            .containsExactly("goal:2026-G1 2", "goal:2026-Q4-G1 2");
+   }
+
+   @Test
+   void goalInfoOfAQuarterlyGoalShowsItsEffortsWithTheirTasksCounted() throws IOException {
+      run("goal", "new", "2026", "--title", "Infinispan provably correct");
+      run("goal", "new", "2026-Q3", "--title", "Fix bugs", "--parent", "2026-G1");
+      run("goal", "new", "2026-Q4", "--title", "Fix found data loss bugs", "--parent", "2026-G1");
+      effort("raft-demo", "done", "2026-Q4-G1");
+      effort("infinijepsen-demo", "active", "2026-Q4-G1");
+      effort("summer-demo", "done", "2026-Q3-G1");
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Fix bug", "project:Alpha", "effort:infinijepsen-demo");
+
+      JsonNode info = JSON.readTree(run("goal", "info", "2026-Q4-G1").out());
+
+      JsonNode efforts = info.path("efforts");
+      // As effort list shows them, by slug.
+      assertThat(efforts.valueStream().map(effort -> effort.path("id").asString()))
+            .containsExactly("effort:infinijepsen-demo", "effort:raft-demo");
+      assertThat(efforts.get(0).path("status").asString()).isEqualTo("active");
+      assertThat(efforts.get(0).path("tasks").path("pending").asInt()).isEqualTo(1);
+      assertThat(efforts.get(1).path("tasks").path("pending").asInt()).isZero();
+      assertThat(info.path("goals").isEmpty()).isTrue();
+   }
+
+   @Test
+   void goalInfoOfAYearlyGoalShowsTheEffortsUnderEachOfItsQuarterlyGoals() throws IOException {
+      run("goal", "new", "2026", "--title", "Infinispan provably correct");
+      run("goal", "new", "2026-Q3", "--title", "Fix bugs", "--parent", "2026-G1");
+      run("goal", "new", "2026-Q4", "--title", "Fix found data loss bugs", "--parent", "2026-G1");
+      effort("summer-demo", "done", "2026-Q3-G1");
+      effort("infinijepsen-demo", "active", "2026-Q4-G1");
+
+      JsonNode info = JSON.readTree(run("goal", "info", "2026-G1").out());
+
+      // Efforts move quarterly goals forward, so a yearly goal reaches them through its quarterly goals.
+      assertThat(info.path("efforts").isEmpty()).isTrue();
+      JsonNode goals = info.path("goals");
+      assertThat(ids(goals)).containsExactly("goal:2026-Q3-G1", "goal:2026-Q4-G1");
+      assertThat(ids(goals.get(0).path("efforts"))).containsExactly("effort:summer-demo");
+      assertThat(ids(goals.get(1).path("efforts"))).containsExactly("effort:infinijepsen-demo");
+   }
+
+   @Test
+   void goalInfoShowsPeopleTheEffortsOfItsGoals() throws IOException {
+      run("goal", "new", "2026", "--title", "Infinispan provably correct");
+      run("goal", "new", "2026-Q4", "--title", "Fix found data loss bugs", "--parent", "2026-G1");
+      effort("infinijepsen-demo", "active", "2026-Q4-G1");
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Fix bug", "project:Alpha", "effort:infinijepsen-demo");
+
+      Result result = run("goal", "info", "2026-G1", "--human");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out().lines())
+            .anySatisfy(line -> assertThat(line).contains("infinijepsen-demo", "2026-Q4-G1", "1 pending, 0 completed"));
+   }
+
    @ParameterizedTest
    @ValueSource(strings = { "2026-G9", "provably-correct" })
    void goalInfoOnAGoalThatDoesNotExistExitsNotFound(String id) {
@@ -617,6 +691,26 @@ class GoalCommandTest {
       Path note = goals.resolve(relative);
       Files.createDirectories(note.getParent());
       return Files.writeString(note, content);
+   }
+
+   /**
+    * Writes an effort note by hand, as {@code effort new} would.
+    *
+    * @param slug the effort's slug.
+    * @param status the effort's status, e.g. {@code active}.
+    * @param goal the effort's quarterly goal.
+    * @throws IOException when the note cannot be written.
+    */
+   private void effort(String slug, String status, String goal) throws IOException {
+      Path note = taskwarrior.dataLocation().resolve("efforts").resolve(slug + ".md");
+      Files.createDirectories(note.getParent());
+      Files.writeString(note, """
+            ---
+            title: %s
+            status: %s
+            goal: %s
+            ---
+            """.formatted(slug, status, goal));
    }
 
    /**

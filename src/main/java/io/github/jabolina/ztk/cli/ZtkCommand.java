@@ -10,6 +10,7 @@ import io.github.jabolina.ztk.cli.commands.CheckCommand;
 import io.github.jabolina.ztk.cli.commands.ConfigCommand;
 import io.github.jabolina.ztk.cli.commands.CurrentCommand;
 import io.github.jabolina.ztk.cli.commands.DoneCommand;
+import io.github.jabolina.ztk.cli.commands.EffortCommand;
 import io.github.jabolina.ztk.cli.commands.GoalCommand;
 import io.github.jabolina.ztk.cli.commands.GraphCommand;
 import io.github.jabolina.ztk.cli.commands.InfoCommand;
@@ -43,6 +44,7 @@ import io.github.jabolina.ztk.cli.commands.WeekCommand;
             GraphCommand.class,
             CheckCommand.class,
             GoalCommand.class,
+            EffortCommand.class,
 })
 public class ZtkCommand implements Command<ZtkInvocation> {
 

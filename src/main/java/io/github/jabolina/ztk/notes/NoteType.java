@@ -35,8 +35,13 @@ public enum NoteType implements Labeled {
    GOAL,
 
    /**
+    * An effort: a note directly in the efforts folder, named after the effort's slug.
+    */
+   EFFORT,
+
+   /**
     * A note in no folder ztk gives a meaning to, e.g. at the root of the knowledge base, or material kept next to a
-    * goal.
+    * goal or an effort.
     */
    OTHER;
 }

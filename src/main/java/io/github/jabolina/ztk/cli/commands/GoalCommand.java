@@ -2,8 +2,8 @@ package io.github.jabolina.ztk.cli.commands;
 
 import java.time.Year;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
@@ -14,10 +14,11 @@ import org.aesh.command.option.Option;
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.cli.renderer.Table;
-import io.github.jabolina.ztk.planning.Goal;
+import io.github.jabolina.ztk.planning.Efforts;
 import io.github.jabolina.ztk.planning.GoalStatus;
 import io.github.jabolina.ztk.planning.Goals;
 import io.github.jabolina.ztk.planning.Period;
+import io.github.jabolina.ztk.planning.Saved;
 import io.github.jabolina.ztk.util.Labeled;
 
 /**
@@ -27,15 +28,16 @@ import io.github.jabolina.ztk.util.Labeled;
  * @author José Bolina
  */
 @CommandDefinition(name = "goal", description = "Plan yearly and quarterly goals", generateHelp = true,
-      groupCommands = { GoalCommand.New.class, GoalCommand.Set.class, GoalCommand.List.class, GoalCommand.Info.class })
+      groupCommands = { GoalCommand.New.class, GoalCommand.Set.class, GoalCommand.ListGoals.class, GoalCommand.Info.class })
 public class GoalCommand implements Command<ZtkInvocation> {
 
    // One goal per row, quarterly goals indented under the yearly goal put right before them.
-   private static final Table<Goal> TABLE_RENDERER = Table.<Goal>builder()
-         .column("ID", goal -> (goal.period() instanceof Period.OfQuarter ? "  " : "") + goal.id())
-         .column("STATUS", goal -> goal.status().map(GoalStatus::label).orElse("invalid")
-               + (goal.needsClosing() ? ", needs closing" : ""))
-         .column("TITLE", Goal::title)
+   private static final Table<Goals.Listed> TABLE_RENDERER = Table.<Goals.Listed>builder()
+         .column("ID", listed -> (listed.goal().period() instanceof Period.OfQuarter ? "  " : "") + listed.goal().id())
+         .column("STATUS", listed -> listed.goal().status().map(GoalStatus::label).orElse("invalid")
+               + (listed.goal().needsClosing() ? ", needs closing" : ""))
+         .column("EFFORTS", listed -> String.valueOf(listed.efforts()))
+         .column("TITLE", listed -> listed.goal().title())
          .build();
 
    @Override
@@ -92,11 +94,11 @@ public class GoalCommand implements Command<ZtkInvocation> {
 
       @Override
       public CommandResult execute(ZtkInvocation invocation) {
-         Goals.Saved created = invocation.context().goals()
+         Saved created = invocation.context().goals()
                .create(new Goals.Details(Period.parse(period), title, Optional.ofNullable(parent), Optional.ofNullable(slug)));
 
          // Human messages redirected to stderr, the result goes to stdout.
-         invocation.printErr("Created goal " + created.id() + ".");
+         invocation.printErr("Created " + created.id() + ".");
          invocation.result(created.path() + System.lineSeparator(), created.writeJson(invocation.jsonResult()));
          return CommandResult.SUCCESS;
       }
@@ -142,12 +144,12 @@ public class GoalCommand implements Command<ZtkInvocation> {
          }
          Optional<GoalStatus> newStatus = Optional.ofNullable(status).map(GoalCommand::status);
 
-         Goals.Saved saved = invocation.context().goals()
+         Saved saved = invocation.context().goals()
                .update(goal, new Goals.Changes(newStatus, Optional.ofNullable(title), Optional.ofNullable(parent)));
 
          // Human messages redirected to stderr, the result goes to stdout.
-         invocation.printErr("Updated goal " + saved.id() + ".");
-         invocation.result("goal:" + saved.id() + System.lineSeparator(), saved.writeJson(invocation.jsonResult()));
+         invocation.printErr("Updated " + saved.id() + ".");
+         invocation.result(saved.id() + System.lineSeparator(), saved.writeJson(invocation.jsonResult()));
          return CommandResult.SUCCESS;
       }
    }
@@ -170,7 +172,7 @@ public class GoalCommand implements Command<ZtkInvocation> {
     * @author José Bolina
     */
    @CommandDefinition(name = "list", description = "List the goals of a year or quarter", generateHelp = true)
-   public static final class List implements Command<ZtkInvocation> {
+   public static final class ListGoals implements Command<ZtkInvocation> {
 
       @Argument(description = "The year or quarter, e.g., 2026 or 2026-Q4; the current year when not given")
       String period;
@@ -195,10 +197,11 @@ public class GoalCommand implements Command<ZtkInvocation> {
    }
 
    /**
-    * {@code ztk goal info}: shows one goal with the goals that move it forward.
+    * {@code ztk goal info}: shows one goal with what moves it forward.
     *
     * <p>
-    * A yearly goal is shown with its quarterly goals; a quarterly goal names its yearly goal as its parent.
+    * A yearly goal is shown with its quarterly goals and their efforts; a quarterly goal with its efforts, each with
+    * its tasks counted. A quarterly goal names its yearly goal as its parent.
     * </p>
     *
     * <pre>
@@ -219,8 +222,12 @@ public class GoalCommand implements Command<ZtkInvocation> {
       public CommandResult execute(ZtkInvocation invocation) {
          Goals.Info info = invocation.context().goals().info(goal);
 
-         // Rendered only in human mode: the goal's row, then its quarterly goals.
-         invocation.result(() -> TABLE_RENDERER.render(Stream.concat(Stream.of(info.goal()), info.goals().stream()).toList()),
+         // Rendered only in human mode: the goal's row, then its quarterly goals; then the efforts under them.
+         invocation.result(() -> {
+                  String goals = TABLE_RENDERER.render(info.nodes().map(Goals.Info::listed).toList());
+                  List<Efforts.Listed> efforts = info.nodes().flatMap(node -> node.efforts().stream()).toList();
+                  return efforts.isEmpty() ? goals : goals + System.lineSeparator() + EffortCommand.TABLE_RENDERER.render(efforts);
+               },
                info.writeJson(invocation.jsonResult()));
          return CommandResult.SUCCESS;
       }

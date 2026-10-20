@@ -1,14 +1,12 @@
 package io.github.jabolina.ztk.planning;
 
-import io.github.jabolina.ztk.util.Labeled;
-
 /**
  * Where a goal stands, set by the user.
  *
  * @since 1.0
  * @author José Bolina
  */
-public enum GoalStatus implements Labeled {
+public enum GoalStatus implements PlanningStatus {
    /**
     * Still being worked toward.
     */
@@ -38,6 +36,7 @@ public enum GoalStatus implements Labeled {
    /**
     * @return whether a goal with this status is closed, so no new work goes under it.
     */
+   @Override
    public boolean closed() {
       return closed;
    }

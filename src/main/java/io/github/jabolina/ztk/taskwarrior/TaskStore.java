@@ -45,6 +45,11 @@ public final class TaskStore {
 
    static final String NOTE_UDA = "note";
 
+   /**
+    * ztk's attribute holding the slug of a task's effort; {@code effort:<slug>} sets it, {@code effort:} clears it.
+    */
+   public static final String EFFORT_UDA = "effort";
+
    private final Configuration configuration;
 
    /**
@@ -348,6 +353,8 @@ public final class TaskStore {
       // Taskwarrior reads "note:<path>" as description text, and "modify note:<path>" replaces the description.
       command.add("rc.uda." + NOTE_UDA + ".type=string");
       command.add("rc.uda." + NOTE_UDA + ".label=Note");
+      command.add("rc.uda." + EFFORT_UDA + ".type=string");
+      command.add("rc.uda." + EFFORT_UDA + ".label=Effort");
       return command;
    }
 
@@ -388,7 +395,8 @@ public final class TaskStore {
             node.has("start"),
             node.optional(NOTE_UDA).map(JsonNode::asString),
             // The user's own attribute: read when present, never defined by ztk.
-            node.optional("issue").map(JsonNode::asString));
+            node.optional("issue").map(JsonNode::asString),
+            node.optional(EFFORT_UDA).map(JsonNode::asString));
    }
 
    /**

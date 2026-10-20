@@ -1,8 +1,6 @@
 package io.github.jabolina.ztk.planning;
 
-import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -10,25 +8,23 @@ import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.notes.NoteFiles;
-import io.github.jabolina.ztk.notes.PlanningNotes;
+import io.github.jabolina.ztk.taskwarrior.TaskStore;
 import io.github.jabolina.ztk.util.Frontmatter;
 import io.github.jabolina.ztk.util.JsonWritable;
-import io.github.jabolina.ztk.util.Labeled;
 import io.github.jabolina.ztk.util.Slugs;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -45,13 +41,10 @@ import tools.jackson.databind.node.ObjectNode;
  * @since 1.0
  * @author José Bolina
  */
-public final class Goals implements PlanningNotes {
+public final class Goals {
 
    // Longer slugs derived from a title are cut, so file names stay readable in listings and completion.
    private static final int MAX_SLUG = 60;
-
-   // A goal ID: the period it is for, then its number, e.g. 2026-Q4-G1.
-   private static final Pattern ID = Pattern.compile("(\\d{4}(?:-Q[1-4])?)-G\\d+");
 
    // Yearly goals first, then quarterly goals by quarter; within one period IDs differ only in their number, so the
    // shorter is the smaller: G2 before G10.
@@ -105,28 +98,6 @@ public final class Goals implements PlanningNotes {
          """;
 
    /**
-    * A goal just created or changed.
-    *
-    * @param id   The goal ID, e.g. {@code 2026-G1}.
-    * @param path The absolute path of the goal's note.
-    */
-   public record Saved(String id, Path path) implements JsonWritable {
-
-      /**
-       * Writes the goal's {@code id} and {@code path}.
-       *
-       * @param target the JSON object to write into.
-       * @return {@code target}, for chaining.
-       */
-      @Override
-      public ObjectNode writeJson(ObjectNode target) {
-         target.put("id", Goal.PREFIX + id);
-         target.put("path", path.toString());
-         return target;
-      }
-   }
-
-   /**
     * What is known about a goal when creating it.
     *
     * @param period The year of a yearly goal, or the quarter of a quarterly goal.
@@ -146,12 +117,35 @@ public final class Goals implements PlanningNotes {
    public record Changes(Optional<GoalStatus> status, Optional<String> title, Optional<String> parent) { }
 
    /**
+    * A goal in a listing, with the efforts under it counted.
+    *
+    * @param goal    The goal.
+    * @param efforts The efforts under it, in any status: a quarterly goal's own, or those of a yearly goal's quarterly
+    *                goals listed with it.
+    */
+   public record Listed(Goal goal, long efforts) implements JsonWritable {
+
+      /**
+       * Writes the goal's fields, then its {@code efforts} count.
+       *
+       * @param target the JSON object to write into.
+       * @return {@code target}, for chaining.
+       */
+      @Override
+      public ObjectNode writeJson(ObjectNode target) {
+         goal.writeJson(target);
+         target.put("efforts", efforts);
+         return target;
+      }
+   }
+
+   /**
     * The goals of a period, each yearly goal followed by its quarterly goals.
     *
     * @param period The year or quarter listed.
     * @param goals  The goals, in that order.
     */
-   public record Listing(Period period, List<Goal> goals) implements JsonWritable {
+   public record Listing(Period period, List<Listed> goals) implements JsonWritable {
 
       /**
        * Writes the goals, flat, in a {@code goals} array.
@@ -162,21 +156,37 @@ public final class Goals implements PlanningNotes {
       @Override
       public ObjectNode writeJson(ObjectNode target) {
          ArrayNode array = target.putArray("goals");
-         goals.forEach(goal -> goal.writeJson(array.addObject()));
+         goals.forEach(listed -> listed.writeJson(array.addObject()));
          return target;
       }
    }
 
    /**
-    * One goal and the goals that move it forward.
+    * One goal and what moves it forward: its efforts, and a yearly goal's quarterly goals with theirs.
     *
-    * @param goal  The goal.
-    * @param goals A yearly goal's quarterly goals, by quarter; empty for a quarterly goal.
+    * @param goal    The goal.
+    * @param efforts Its efforts by slug, with their tasks counted; empty for a yearly goal, as efforts name quarterly
+    *                goals.
+    * @param goals   A yearly goal's quarterly goals, by quarter; empty for a quarterly goal.
     */
-   public record Info(Goal goal, List<Goal> goals) implements JsonWritable {
+   public record Info(Goal goal, List<Efforts.Listed> efforts, List<Info> goals) implements JsonWritable {
 
       /**
-       * Writes the goal's fields, then its quarterly goals in a {@code goals} array.
+       * @return this goal, then its quarterly goals.
+       */
+      public Stream<Info> nodes() {
+         return Stream.concat(Stream.of(this), goals.stream());
+      }
+
+      /**
+       * @return the goal as {@code goal list} shows it, counting its efforts and those of its quarterly goals.
+       */
+      public Listed listed() {
+         return new Listed(goal, efforts.size() + goals.stream().mapToLong(child -> child.efforts().size()).sum());
+      }
+
+      /**
+       * Writes the goal's fields, then its {@code efforts} array, then its quarterly goals in a {@code goals} array.
        *
        * @param target the JSON object to write into.
        * @return {@code target}, for chaining.
@@ -184,41 +194,39 @@ public final class Goals implements PlanningNotes {
       @Override
       public ObjectNode writeJson(ObjectNode target) {
          goal.writeJson(target);
-         ArrayNode array = target.putArray("goals");
-         goals.forEach(child -> child.writeJson(array.addObject()));
+         ArrayNode array = target.putArray("efforts");
+         efforts.forEach(listed -> listed.writeJson(array.addObject()));
+         ArrayNode children = target.putArray("goals");
+         goals.forEach(child -> child.writeJson(children.addObject()));
          return target;
       }
    }
 
    private final Configuration configuration;
    private final Clock clock;
+   private final GoalNotes notes;
+   private final EffortNotes efforts;
+   private final EffortTasks effortTasks;
 
    /**
-    * @param configuration the configuration giving the goals folder.
+    * @param configuration the configuration giving the goals and efforts folders.
     * @param clock the clock for the {@code date} of new goals, {@code closed}, and which goals need closing.
+    * @param store the tasks of efforts, counted in {@code goal info}; only reached there, so the other goal commands
+    *              never start Taskwarrior.
     */
-   public Goals(Configuration configuration, Clock clock) {
+   public Goals(Configuration configuration, Clock clock, Supplier<TaskStore> store) {
       this.configuration = configuration;
       this.clock = clock;
-   }
-
-   /**
-    * Tells which goal a note is: a note directly in its level of the goals folder, named after a goal ID of that level.
-    *
-    * @param note the note's absolute path.
-    * @return the goal ID, e.g. {@code 2026-Q4-G1}; empty for any other note, including material kept next to a goal.
-    */
-   @Override
-   public Optional<String> goal(Path note) {
-      Path goals = configuration.folders().goals();
-      return note.startsWith(goals) ? Levels.goal(goals.relativize(note)) : Optional.empty();
+      this.notes = new GoalNotes(configuration, clock);
+      this.efforts = new EffortNotes(configuration, clock);
+      this.effortTasks = new EffortTasks(store);
    }
 
    /**
     * Creates a goal, open, from the template of its level.
     *
     * @param details what is known about the goal.
-    * @return the new goal's ID and path.
+    * @return the new goal's node ID and path.
     * @throws ZtkException with {@link ZtkException.Kind#USAGE} when the slug is not lowercase letters, digits and
     *                      dashes, none is given and the title has no letters or digits, a quarterly goal has no
     *                      parent, or a yearly goal has one. Nothing is written.
@@ -247,7 +255,7 @@ public final class Goals implements PlanningNotes {
          case Period.OfQuarter _ -> QUARTERLY_TEMPLATE;
       };
       NoteFiles.write(file, frontmatter, template);
-      return new Saved(id, file);
+      return new Saved(Goal.PREFIX + id, file);
    }
 
    /**
@@ -260,7 +268,7 @@ public final class Goals implements PlanningNotes {
     *
     * @param id the goal ID, bare or as a node ID, e.g. {@code 2026-G1} or {@code goal:2026-G1}.
     * @param changes what changes; anything empty stays as it is.
-    * @return the goal's ID and path.
+    * @return the goal's node ID and path.
     * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no goal has the ID.
     * @throws ZtkException with {@link ZtkException.Kind#USAGE} when a parent is given for a yearly goal.
     * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when the parent is not a yearly goal of the same
@@ -275,17 +283,9 @@ public final class Goals implements PlanningNotes {
       Frontmatter.update(goal.path(), fields -> {
          changes.title().ifPresent(value -> fields.put("title", value));
          checkedParent.ifPresent(value -> fields.put("parent", value));
-         changes.status().ifPresent(value -> {
-            fields.put("status", value.label());
-            if (!value.closed()) {
-               fields.remove("closed");
-            } else if (goal.status().filter(value::equals).isEmpty()) {
-               // Dated when the status moves to a closed one; setting the current one again keeps its date.
-               fields.put("closed", LocalDate.now(clock).toString());
-            }
-         });
+         changes.status().ifPresent(value -> value.write(fields, goal.status(), LocalDate.now(clock)));
       });
-      return new Saved(goal.id(), goal.path());
+      return new Saved(Goal.PREFIX + goal.id(), goal.path());
    }
 
    /**
@@ -310,7 +310,7 @@ public final class Goals implements PlanningNotes {
       // The one collection: deciding which goals to list takes a first pass for the parents of the listed quarterly
       // goals, which are listed whatever their status. The year's yearly goals are always read, as possible parents.
       List<Goal> read;
-      try (Stream<Goal> goals = Stream.concat(goals(period.ofYear()), quarters.flatMap(this::goals))) {
+      try (Stream<Goal> goals = Stream.concat(notes.of(period.ofYear()), quarters.flatMap(notes::of))) {
          read = goals.toList();
       }
 
@@ -332,36 +332,64 @@ public final class Goals implements PlanningNotes {
             : goal.parent().filter(yearly::contains).orElse(null);
       Comparator<Goal> tree = Comparator.comparing(anchor, Comparator.nullsLast(byNumber)).thenComparing(ORDER);
 
+      // Efforts name quarterly goals: a yearly goal counts those of its quarterly goals read for this period.
+      Map<String, Long> byGoal;
+      try (Stream<Effort> all = efforts.all()) {
+         byGoal = all.flatMap(effort -> effort.goal().stream())
+               .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+      }
+      Map<String, Long> byYearly = read.stream()
+            .filter(goal -> goal.period() instanceof Period.OfQuarter && goal.parent().isPresent())
+            .collect(Collectors.groupingBy(goal -> goal.parent().orElseThrow(),
+                  Collectors.summingLong(goal -> byGoal.getOrDefault(goal.id(), 0L))));
+      Function<Goal, Long> count = goal -> (goal.period() instanceof Period.OfYear ? byYearly : byGoal)
+            .getOrDefault(goal.id(), 0L);
+
       // A year lists its yearly goals on their own merit; a quarter lists yearly goals only as parents.
       boolean listsYearly = period instanceof Period.OfYear;
       return new Listing(period, read.stream()
             .filter(goal -> parents.contains(goal.id())
                   || (wanted.test(goal) && (listsYearly || goal.period() instanceof Period.OfQuarter)))
             .sorted(tree)
+            .map(goal -> new Listed(goal, count.apply(goal)))
             .toList());
    }
 
    /**
-    * Shows one goal with the goals that move it forward.
+    * Shows one goal with what moves it forward: its efforts, and a yearly goal's quarterly goals with theirs.
     *
     * @param id the goal ID, bare or as a node ID, e.g. {@code 2026-G1} or {@code goal:2026-G1}.
-    * @return the goal, with its quarterly goals when it is a yearly goal.
+    * @return the goal, its efforts with their tasks counted, and a yearly goal's quarterly goals with theirs.
     * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no goal has the ID.
-    * @throws UncheckedIOException when the goals cannot be read.
+    * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails.
+    * @throws UncheckedIOException when the goals or efforts cannot be read.
     */
    public Info info(String id) {
       Goal goal = find(id);
-      List<Goal> quarterly = switch (goal.period()) {
+      // One export for every effort's tasks, and one read of the efforts, grouped by the goal they name.
+      Map<String, TaskCounts> counts = effortTasks.counts();
+      Map<String, List<Efforts.Listed>> byGoal;
+      try (Stream<Effort> all = efforts.all()) {
+         byGoal = all.filter(effort -> effort.goal().isPresent())
+               .sorted(Comparator.comparing(Effort::slug))
+               .collect(Collectors.groupingBy(effort -> effort.goal().orElseThrow(), Collectors.mapping(
+                     effort -> new Efforts.Listed(effort, counts.getOrDefault(effort.slug(), TaskCounts.NONE)),
+                     Collectors.toList())));
+      }
+      Function<Goal, List<Efforts.Listed>> effortsOf = found -> byGoal.getOrDefault(found.id(), List.of());
+
+      List<Info> quarterly = switch (goal.period()) {
          case Period.OfYear year -> {
-            try (Stream<Goal> goals = year.quarters().flatMap(this::goals)) {
+            try (Stream<Goal> goals = year.quarters().flatMap(notes::of)) {
                yield goals.filter(child -> child.parent().equals(Optional.of(goal.id())))
                      .sorted(ORDER)
+                     .map(child -> new Info(child, effortsOf.apply(child), List.of()))
                      .toList();
             }
          }
          case Period.OfQuarter _ -> List.of();
       };
-      return new Info(goal, quarterly);
+      return new Info(goal, effortsOf.apply(goal), quarterly);
    }
 
    /**
@@ -373,25 +401,7 @@ public final class Goals implements PlanningNotes {
     * @throws UncheckedIOException when the goals cannot be read.
     */
    private Goal find(String id) {
-      // Accepted as JSON results print it, so an agent can feed it straight back.
-      String bare = id.startsWith(Goal.PREFIX) ? id.substring(Goal.PREFIX.length()) : id;
-      Period period = period(bare).orElseThrow(() -> unknown(id));
-      try (Stream<Goal> goals = goals(period)) {
-         return goals.filter(goal -> goal.id().equals(bare))
-               .findFirst()
-               .orElseThrow(() -> unknown(id));
-      }
-   }
-
-   /**
-    * Reads the period a goal ID is for.
-    *
-    * @param id the bare goal ID, e.g. {@code 2026-Q4-G1}.
-    * @return the year or quarter; empty when the text is not a goal ID.
-    */
-   private static Optional<Period> period(String id) {
-      Matcher matcher = ID.matcher(id);
-      return matcher.matches() ? Optional.of(Period.parse(matcher.group(1))) : Optional.empty();
+      return notes.find(id).orElseThrow(() -> unknown(id));
    }
 
    /**
@@ -419,7 +429,7 @@ public final class Goals implements PlanningNotes {
       // Same year only: a quarterly goal is a step toward a goal of its own year.
       Period.OfYear year = quarter.ofYear();
       Goal found;
-      try (Stream<Goal> goals = goals(year)) {
+      try (Stream<Goal> goals = notes.of(year)) {
          found = goals.filter(goal -> goal.id().equals(id))
                .findFirst()
                .orElseThrow(() -> ZtkException.validation("No yearly goal " + id + " in " + year + ". " + choices(year)));
@@ -442,7 +452,7 @@ public final class Goals implements PlanningNotes {
     */
    private String choices(Period.OfYear year) {
       List<Goal> candidates;
-      try (Stream<Goal> goals = goals(year)) {
+      try (Stream<Goal> goals = notes.of(year)) {
          candidates = goals.sorted(ORDER).toList();
       }
       if (candidates.isEmpty()) {
@@ -493,61 +503,10 @@ public final class Goals implements PlanningNotes {
     * @throws UncheckedIOException when the goals cannot be read.
     */
    private int next(Period period, String prefix) {
-      try (Stream<Goal> goals = goals(period)) {
+      try (Stream<Goal> goals = notes.of(period)) {
          return goals.mapToInt(goal -> Integer.parseInt(goal.id().substring(prefix.length())))
                .max()
                .orElse(0) + 1;
       }
-   }
-
-   /**
-    * Reads the goals of a period: the notes directly in its folder whose names are goal IDs of that period.
-    *
-    * @param period the year or quarter.
-    * @return the goals, read as the stream is consumed; empty when the folder does not exist. It must be closed, e.g.
-    *         with try-with-resources, to release the folder.
-    * @throws UncheckedIOException when the folder cannot be listed or a goal cannot be read.
-    */
-   private Stream<Goal> goals(Period period) {
-      Path goals = configuration.folders().goals();
-      Path folder = period.folder(goals);
-      if (!Files.isDirectory(folder)) {
-         return Stream.empty();
-      }
-      Stream<Path> files;
-      try {
-         files = Files.list(folder);
-      } catch (IOException e) {
-         throw new UncheckedIOException("Failed reading folder: " + folder, e);
-      }
-      // Only files directly in the folder: anything in a subfolder is material, or a goal of another level.
-      // The listing's close handler carries over to the returned pipeline.
-      return files.filter(Files::isRegularFile)
-            .flatMap(file -> Levels.goal(goals.relativize(file)).map(id -> read(id, file)).stream());
-   }
-
-   /**
-    * Reads one goal from its note.
-    *
-    * @param id the goal ID, from the file name.
-    * @param file the goal's note.
-    * @return the goal.
-    * @throws UncheckedIOException when the note cannot be read.
-    */
-   private Goal read(String id, Path file) {
-      JsonNode frontmatter = Frontmatter.read(file);
-      // Only called with the IDs of goal files, which always name a period.
-      Period period = period(id).orElseThrow();
-      Optional<GoalStatus> status = frontmatter.path("status").asStringOpt()
-            .flatMap(label -> Labeled.parse(GoalStatus.class, label));
-      // Still open after its period ended: whether it was reached, missed or dropped is for the user to say.
-      boolean needsClosing = status.equals(Optional.of(GoalStatus.OPEN)) && LocalDate.now(clock).isAfter(period.end());
-      return new Goal(id, period,
-            frontmatter.path("title").asStringOpt().orElse(file.getFileName().toString()),
-            status,
-            frontmatter.path("closed").asStringOpt(),
-            frontmatter.path("parent").asStringOpt(),
-            file,
-            needsClosing);
    }
 }

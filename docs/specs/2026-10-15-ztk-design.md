@@ -184,12 +184,15 @@ Effort (the working document agents read most):
 
 ```
 ## Context
+_Why this effort exists, and what its quarterly goal needs from it._
 ## Done when
 _A checklist, as for quarterly goals._
 ## Approach
+_How the work gets there; rewritten when the plan changes, with the reason in Decisions._
 ## Decisions
 _A dated log: "2026-11-02: chose X over Y, because …". Each session's agent reads it before changing course._
 ## Risks and open questions
+_What could block it, and what is still unclear._
 ## Outcome
 _When closed: what was delivered, its impact, links to the evidence. This feeds the quarterly retrospective._
 ```
@@ -252,7 +255,7 @@ The graph is built in memory per invocation by reading the notes (in parallel, o
 
 | Command | Behavior |
 |---|---|
-| `add <desc> project:X [taskwarrior attrs] [--effort <slug>]` | Creates the task **and its note** (`<project>/<YYYYMMDD>-<slug>.md`, linked through UDA `note`) and prints the note path. Requires a literal `project:<name>` and fails with code 3 without it, or if the effort does not exist or is `done`/`dropped`, before anything is written. Sets UDA `effort`. Replaces the old `add` + `touch` sequence. |
+| `add <desc> project:X [taskwarrior attrs] [--effort <slug>]` | Creates the task **and its note** (`<project>/<YYYYMMDD>-<slug>.md`, linked through UDA `note`) and prints the note path. Requires a literal `project:<name>` and fails with code 3 without it, or if the effort does not exist or is `done`/`dropped`, before anything is written. Sets UDA `effort`. The effort is given only through `--effort`: an `effort:` word (or an abbreviation down to `ef:`, which Taskwarrior also takes) is a usage error naming the option, since it would skip both checks. Replaces the old `add` + `touch` sequence. |
 | `start <id> [--editor]` | Single-active-task rule (exit 3 naming the active task); adds `+week`, removes `+review`; starting the active task again succeeds. Prints the note path; `--editor`/`-e` also opens it, and fails before starting outside an interactive session. Finds the note by UDA `note`, then by `task_uuid` frontmatter anywhere in the knowledge base (setting the UDA), and creates it otherwise; a task without a project fails with exit 3 before starting. Replaces the old `start` + `begin` pair. |
 | `stop` | Stops all active tasks and lists them (JSON: `tasks` array, empty when nothing was active; not an error). No longer shows `week`; use `ztk stop && ztk week`. |
 | `review <id>` | Stops the task if active (an inactive task is only tagged), adds `+review`, keeps its other tags (a week task stays in the week). Prints the task (JSON: `id`, `uuid`, `description`). |
@@ -278,11 +281,11 @@ The common task shape (JSON of every task command) has `id`, `uuid`, `descriptio
 |---|---|
 | `goal new <YYYY\|YYYY-Qq> --title … [--parent YYYY-Gn] [--slug …]` | Creates the goal note from its template (`status: open`) and allocates the ID (§4.2). `--parent` is required for a quarterly goal and must name an open yearly goal of the same year. |
 | `goal set <id> [--status …] [--title …] [--parent …]` | Updates the frontmatter, writing or removing `closed` with the status (§4.2). |
-| `goal list [YYYY\|YYYY-Qq] [--status …]` | Goals of the period (default: the current year, in any status); a quarter also lists its goals' yearly parents. The yearly parents of the listed quarterly goals are always listed, whatever their status. Human: yearly goals with their quarterly goals nested, each with its effort count and "needs closing" marked. JSON: `goals`, flat in the same order (each yearly goal followed by its quarterly goals), each with `id`, `title`, `status` (`null` when not a goal status), `closed`, `parent` (a node ID; `null` for yearly), `path`, `needsClosing`, `efforts` (count). |
-| `goal info <id>` | One goal (its fields as in `goal list`, at the top level) and its subtree: `goals`, a yearly goal's quarterly goals by quarter (empty for a quarterly goal), then efforts → task counts by status. An unknown goal exits 2. |
+| `goal list [YYYY\|YYYY-Qq] [--status …]` | Goals of the period (default: the current year, in any status); a quarter also lists its goals' yearly parents. The yearly parents of the listed quarterly goals are always listed, whatever their status. Human: yearly goals with their quarterly goals nested, each with its effort count and "needs closing" marked. JSON: `goals`, flat in the same order (each yearly goal followed by its quarterly goals), each with `id`, `title`, `status` (`null` when not a goal status), `closed`, `parent` (a node ID; `null` for yearly), `path`, `needsClosing`, `efforts` (count, in any status; a yearly goal counts the efforts of the quarterly goals listed with it, since efforts name quarterly goals). |
+| `goal info <id>` | One goal (its fields as in `goal list`, at the top level) and its subtree: `efforts`, the goal's efforts by slug as `effort list` shows them, with `tasks` counts (empty for a yearly goal), and `goals`, a yearly goal's quarterly goals by quarter, each with its own `efforts` (empty for a quarterly goal). In `goal info`, `efforts` is that list, not a count. Human: the goals table, then the efforts table. An unknown goal exits 2. |
 | `effort new <slug> --title … --goal YYYY-Qq-Gn` | Creates the effort note from its template (`status: planned`). The goal must be an open quarterly goal; the slug must be `[a-z0-9-]` and not the name of any note. |
 | `effort set <slug> [--status …] [--title …] [--goal …]` | Updates the frontmatter, writing or removing `closed` with the status. A goal of another quarter carries the effort over. |
-| `effort list [YYYY-Qq] [--status …] [--goal …]` | Default: every `planned`/`active` effort in any quarter, carried-over ones marked. With a quarter: the efforts whose goal is in it, in any status. JSON: `efforts`, each with `id`, `title`, `status`, `closed`, `goal`, `quarter`, `carriedOver`, `path`, task counts by status. |
+| `effort list [YYYY\|YYYY-Qq] [--status …] [--goal …]` | Default: every `planned`/`active` effort in any quarter, carried-over ones marked. With a quarter: the efforts whose goal is in it, in any status; a year means its four quarters. With `--goal`: that goal's efforts, in any status. `--status` narrows any of these. Ordered by their goal's quarter, then goal, then slug. JSON: `efforts`, each with `id`, `title`, `status` (`null` when not an effort status), `closed`, `goal` (a node ID), `quarter`, `carriedOver`, `path`, `tasks: {pending, completed}` (waiting tasks count as pending; deleted tasks and recurring templates are not counted). |
 | `effort info <slug>` | One effort (`id`, `title`, `status`, `closed`, `path`), its goal chain (`goal: {id, title, status, path, parent: {…}}`) and its tasks by status (the common task shape plus `note`). An unknown effort exits 2. |
 | `effort assign <slug> <task…>` | Sets the effort of one or more tasks; refusals as in §4.2. |
 | `effort unassign <task…>` | Clears it: the tasks become general work. |

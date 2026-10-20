@@ -16,10 +16,18 @@ import java.util.Optional;
 public interface PlanningNotes {
 
    /**
-    * Tells which goal a note is.
+    * A planning item's own note, as the knowledge base shows it.
+    *
+    * @param type The note type, e.g. {@link NoteType#GOAL}.
+    * @param id   The item's node ID, e.g. {@code goal:2026-Q4-G1} or {@code effort:infinijepsen-demo}.
+    */
+   record Planned(NoteType type, String id) { }
+
+   /**
+    * Tells which planning item a note is.
     *
     * @param note the note's absolute path.
-    * @return the goal ID, e.g. {@code 2026-Q4-G1}; empty when the note is not a goal.
+    * @return the item; empty when the note is not a planning item, including material kept next to one.
     */
-   Optional<String> goal(Path note);
+   Optional<Planned> planned(Path note);
 }

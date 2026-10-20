@@ -58,10 +58,10 @@ public sealed interface Note extends JsonWritable {
     */
    record Plain(Header header, NoteType type) implements Note {
       public Plain {
-         // A task note without its task, a paper without its PDF, or a goal without its ID would lose what makes it
-         // that type.
-         if (type == NoteType.TASK || type == NoteType.PAPER || type == NoteType.GOAL) {
-            throw new IllegalArgumentException("Task, paper and goal notes have their own variants: use Note.Task, Note.Paper or Note.Goal");
+         // A task note without its task, a paper without its PDF, or a planning item without its ID would lose what
+         // makes it that type.
+         if (type == NoteType.TASK || type == NoteType.PAPER || type == NoteType.GOAL || type == NoteType.EFFORT) {
+            throw new IllegalArgumentException("Task, paper, goal and effort notes have their own variants: use Note.Task, Note.Paper or Note.Planning");
          }
       }
    }
@@ -90,26 +90,13 @@ public sealed interface Note extends JsonWritable {
    }
 
    /**
-    * A goal's own note: the goal itself, not a note about it.
+    * A planning item's own note: the goal or effort itself, not a note about it.
     *
     * @param header The note's common data.
-    * @param goal   The goal ID, from the file name, e.g. {@code 2026-Q4-G1}.
+    * @param type   {@link NoteType#GOAL} or {@link NoteType#EFFORT}.
+    * @param id     The item's node ID, e.g. {@code goal:2026-Q4-G1} or {@code effort:infinijepsen-demo}.
     */
-   record Goal(Header header, String goal) implements Note {
-
-      /**
-       * @return the goal's node ID, e.g. {@code goal:2026-Q4-G1}.
-       */
-      @Override
-      public String id() {
-         return "goal:" + goal;
-      }
-
-      @Override
-      public NoteType type() {
-         return NoteType.GOAL;
-      }
-   }
+   record Planning(Header header, NoteType type, String id) implements Note { }
 
    /**
     * @return the node ID, e.g. {@code note:zettel/20261015-causality}, or {@code goal:2026-G1} for a goal.

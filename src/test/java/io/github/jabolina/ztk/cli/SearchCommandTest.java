@@ -251,12 +251,12 @@ class SearchCommandTest {
       Result result = CliHarness.run(taskwarrior.environment(), false, "search", "raft");
 
       assertThat(result.exitCode()).isZero();
-      // Not typed further until their own types exist, but never mistaken for projects named "goals" or "notes".
+      // Typed by their own folder's rules, or not at all, but never mistaken for projects named "goals" or "notes".
       assertThat(JSON.readTree(result.out()).path("results"))
             .map(found -> found.path("id").asString() + " " + found.path("type").asString())
             .containsExactlyInAnyOrder(
                   "note:goals/2026 other",
-                  "note:efforts/consensus other",
+                  "effort:consensus effort",
                   "note:journal/2026-10-17 other",
                   "note:summaries/2026-W42 other",
                   "note:notes/scratch other",
@@ -480,6 +480,54 @@ class SearchCommandTest {
       assertThat(result.exitCode()).isZero();
       assertThat(JSON.readTree(result.out()).path("results").valueStream().map(found -> found.path("id").asString()))
             .containsExactlyInAnyOrder("goal:2026-G1", "goal:2026-Q4-G1");
+   }
+
+   @Test
+   void searchNamesEffortsByTheirSlugAndReadsTheirMaterialAsOther() throws IOException {
+      String content = """
+            ---
+            title: Replication
+            ---
+
+            Replication must survive partitions.
+            """;
+      Path effort = note("efforts/infinijepsen-demo.md", content);
+      // Material: any folder inside the efforts folder, even holding a file named like an effort.
+      Path material = note("efforts/infinijepsen-demo/plan.md", content);
+      Path materialNamedLikeAnEffort = note("efforts/infinijepsen-demo/raft-everywhere.md", content);
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "search", "replication");
+
+      assertThat(result.exitCode()).isZero();
+      Map<String, JsonNode> byPath = byPath(JSON.readTree(result.out()).path("results"));
+      assertThat(byPath).hasSize(3);
+      assertThat(byPath.get(effort.toString()).path("id").asString()).isEqualTo("effort:infinijepsen-demo");
+      assertThat(byPath.get(effort.toString()).path("type").asString()).isEqualTo("effort");
+      for (Path other : new Path[] { material, materialNamedLikeAnEffort }) {
+         JsonNode found = byPath.get(other.toString());
+         assertThat(found.path("type").asString()).as(other.toString()).isEqualTo("other");
+         assertThat(found.path("id").asString()).as(other.toString()).startsWith("note:efforts/infinijepsen-demo/");
+      }
+   }
+
+   @Test
+   void searchWithTypeEffortFindsOnlyEfforts() throws IOException {
+      String content = """
+            ---
+            title: Replication
+            ---
+
+            Replication must survive partitions.
+            """;
+      note("efforts/infinijepsen-demo.md", content);
+      note("efforts/infinijepsen-demo/plan.md", content);
+      note("goals/2026/2026-G1-provably-correct.md", content);
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "search", "replication", "--type", "effort");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(JSON.readTree(result.out()).path("results").valueStream().map(found -> found.path("id").asString()))
+            .containsExactly("effort:infinijepsen-demo");
    }
 
    /**

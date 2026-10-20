@@ -19,6 +19,7 @@ import tools.jackson.databind.node.ObjectNode;
  * @param active      Whether the task is started, i.e., currently being worked on.
  * @param note        The path of the task's note, relative to the knowledge base, if one was created.
  * @param issue       The external issue the task tracks, e.g. {@code GH-1}, from the user's {@code issue} attribute.
+ * @param effort      The slug of the effort the task belongs to, from ztk's {@code effort} attribute; empty for general work.
  */
 public record Task(
       int id,
@@ -29,7 +30,8 @@ public record Task(
       List<String> tags,
       boolean active,
       Optional<String> note,
-      Optional<String> issue
+      Optional<String> issue,
+      Optional<String> effort
 ) implements JsonWritable {
 
    /**
@@ -72,6 +74,8 @@ public record Task(
       }
       target.put("active", active);
       target.put("issue", issue.orElse(null));
+      // Null for general work, so every task has the same fields.
+      target.put("effort", effort.orElse(null));
       return target;
    }
 }

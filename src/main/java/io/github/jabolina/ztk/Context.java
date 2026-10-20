@@ -10,7 +10,9 @@ import io.github.jabolina.ztk.graph.KnowledgeGraph;
 import io.github.jabolina.ztk.notes.KnowledgeBase;
 import io.github.jabolina.ztk.notes.Papers;
 import io.github.jabolina.ztk.notes.Zettels;
+import io.github.jabolina.ztk.planning.Efforts;
 import io.github.jabolina.ztk.planning.Goals;
+import io.github.jabolina.ztk.planning.Levels;
 import io.github.jabolina.ztk.search.Search;
 import io.github.jabolina.ztk.tasks.Tasks;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
@@ -38,6 +40,7 @@ public final class Context {
    private Search search;
    private Papers papers;
    private Goals goals;
+   private Efforts efforts;
 
    /**
     * @param env the process environment.
@@ -124,7 +127,7 @@ public final class Context {
     * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
     */
    public KnowledgeBase knowledgeBase() {
-      return new KnowledgeBase(configuration(), goals());
+      return new KnowledgeBase(configuration(), new Levels(configuration()));
    }
 
    /**
@@ -148,9 +151,20 @@ public final class Context {
     */
    public Goals goals() {
       if (goals == null) {
-         goals = new Goals(configuration(), Clock.systemDefaultZone());
+         goals = new Goals(configuration(), Clock.systemDefaultZone(), this::store);
       }
       return goals;
+   }
+
+   /**
+    * @return the efforts of the knowledge base, created on first use.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public Efforts efforts() {
+      if (efforts == null) {
+         efforts = new Efforts(configuration(), Clock.systemDefaultZone(), knowledgeBase(), this::store, this::tasks);
+      }
+      return efforts;
    }
 
    /**

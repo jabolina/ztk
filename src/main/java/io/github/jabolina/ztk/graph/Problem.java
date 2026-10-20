@@ -2,13 +2,13 @@ package io.github.jabolina.ztk.graph;
 
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import io.github.jabolina.ztk.notes.Note;
 import io.github.jabolina.ztk.notes.NoteWarning;
 import io.github.jabolina.ztk.notes.Wikilink;
 import io.github.jabolina.ztk.util.JsonWritable;
+import io.github.jabolina.ztk.util.Labeled;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -26,7 +26,7 @@ public sealed interface Problem extends JsonWritable {
    /**
     * How much a problem matters.
     */
-   enum Severity {
+   enum Severity implements Labeled {
       /**
        * Something is broken: {@code check} fails until it is fixed.
        */
@@ -97,7 +97,7 @@ public sealed interface Problem extends JsonWritable {
    default ObjectNode writeJson(ObjectNode target) {
       target.put("code", code());
       // Lowercase, as the codes are.
-      target.put("severity", severity().name().toLowerCase(Locale.ROOT));
+      target.put("severity", severity().label());
       // Null rather than left out, so every problem has the same fields.
       target.put("id", id().orElse(null));
       target.put("path", path().map(Path::toString).orElse(null));

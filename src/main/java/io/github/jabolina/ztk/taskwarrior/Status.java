@@ -1,8 +1,7 @@
 package io.github.jabolina.ztk.taskwarrior;
 
-import java.util.Locale;
-
 import io.github.jabolina.ztk.ZtkException;
+import io.github.jabolina.ztk.util.Labeled;
 
 /**
  * The Taskwarrior status of a task.
@@ -15,7 +14,7 @@ import io.github.jabolina.ztk.ZtkException;
  * @since 1.0
  * @author José Bolina
  */
-public enum Status {
+public enum Status implements Labeled {
    PENDING,
    WAITING,
    COMPLETED,
@@ -32,7 +31,8 @@ public enum Status {
     */
    static Status parse(String exported) {
       try {
-         return valueOf(exported.toUpperCase(Locale.ROOT));
+         return Labeled.parse(Status.class, exported)
+               .orElseThrow(() -> ZtkException.taskwarrior("Taskwarrior exported an unknown task status: '" + exported + "'."));
       } catch (IllegalArgumentException e) {
          throw ZtkException.taskwarrior("Taskwarrior exported an unknown task status: '" + exported + "'.");
       }

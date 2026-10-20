@@ -1,6 +1,7 @@
 package io.github.jabolina.ztk.cli.converters;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import org.aesh.command.converter.Converter;
@@ -8,6 +9,7 @@ import org.aesh.command.converter.ConverterInvocation;
 import org.aesh.command.validator.OptionValidatorException;
 
 import io.github.jabolina.ztk.notes.NoteType;
+import io.github.jabolina.ztk.util.Labeled;
 
 /**
  * Converts a {@code --type} value to a {@link NoteType}.
@@ -32,12 +34,8 @@ public class NoteTypeConverter implements Converter<NoteType, ConverterInvocatio
    @Override
    public NoteType convert(ConverterInvocation invocation) throws OptionValidatorException {
       String value = invocation.getInput().strip();
-      for (NoteType type : NoteType.values()) {
-         if (type.label().equalsIgnoreCase(value))
-            return type;
-      }
-
-      throw new OptionValidatorException("Unknown note type '" + value + "' for --type. Valid types: "
-            + Arrays.stream(NoteType.values()).map(NoteType::label).collect(Collectors.joining(", ")));
+      return Labeled.parse(NoteType.class, value.toLowerCase(Locale.ROOT))
+            .orElseThrow(() -> new OptionValidatorException("Unknown note type '" + value + "' for --type. Valid types: "
+                  + Arrays.stream(NoteType.values()).map(NoteType::label).collect(Collectors.joining(", "))));
    }
 }

@@ -112,7 +112,7 @@ Every effort has a quarterly goal, and its quarter is its goal's: there is no `q
 
 - Goals (both levels): `open | reached | missed | dropped`. `missed` means tried and not made; `dropped` means it no longer matters. An `open` goal whose quarter (or year) has ended **needs closing**.
 - Efforts: `planned | active | done | dropped`. An effort that is neither `done` nor `dropped` and whose goal's quarter has ended is **carried over** (see §6.3).
-- `closed` holds when the status last moved to a closing one (`reached`/`missed`/`dropped`, `done`/`dropped`), written by `goal set`/`effort set` and removed when the status moves back to an open one. Summaries place a closed goal or effort in the period of its `closed`.
+- `closed` holds the day (`YYYY-MM-DD`) the status last moved to a closing one (`reached`/`missed`/`dropped`, `done`/`dropped`), written by `goal set`/`effort set` and removed when the status moves back to an open one. Summaries place a closed goal or effort in the period of its `closed`.
 - ztk never puts open work under something closed: `effort assign` and `add --effort` refuse a `done`/`dropped` effort for a pending task (a completed task may be assigned after the fact), and `effort new`, `effort set --goal` and `goal new --parent` refuse a closed goal. Each refusal exits 3 with the command that reopens it.
 
 ### 4.3 Taskwarrior UDAs
@@ -156,7 +156,9 @@ _Who agreed (your manager), when, and what exactly was agreed, in their words wh
 ## What success looks like
 _Signals that the goal was met, not hard metrics: it is open-ended on purpose._
 ## Out of scope
+_What this goal deliberately leaves out, so nobody expects it later._
 ## Open questions
+_What is still unclear, and who can answer it._
 ## Retrospective
 _At the end of the year: the outcome, the evidence (efforts, summaries, links), what you learned, what you would do differently._
 ```
@@ -165,11 +167,13 @@ Quarterly goal (smaller, achievable, checkable):
 
 ```
 ## Summary
+_One paragraph a newcomer understands: what this goal delivers this quarter._
 ## Contribution
 _How reaching this moves the yearly goal forward._
 ## Done when
 _A checklist of concrete, verifiable criteria; reached means every item holds._
 ## Out of scope
+_What this goal deliberately leaves out, so nobody expects it this quarter._
 ## Risks and dependencies
 _What could block it, and whom it depends on._
 ## Retrospective
@@ -274,8 +278,8 @@ The common task shape (JSON of every task command) has `id`, `uuid`, `descriptio
 |---|---|
 | `goal new <YYYY\|YYYY-Qq> --title … [--parent YYYY-Gn] [--slug …]` | Creates the goal note from its template (`status: open`) and allocates the ID (§4.2). `--parent` is required for a quarterly goal and must name an open yearly goal of the same year. |
 | `goal set <id> [--status …] [--title …] [--parent …]` | Updates the frontmatter, writing or removing `closed` with the status (§4.2). |
-| `goal list [YYYY\|YYYY-Qq] [--status …]` | Goals of the period (default: the current year, in any status); a quarter also lists its goals' yearly parents. Human: yearly goals with their quarterly goals nested, each with its effort count and "needs closing" marked. JSON: `goals`, flat, each with `id`, `title`, `status`, `closed`, `parent` (`null` for yearly), `path`, `efforts` (count). |
-| `goal info <id>` | One goal (`id`, `title`, `status`, `closed`, `parent`, `path`) and its subtree: a yearly goal's quarterly goals → efforts → task counts by status; a quarterly goal's efforts → task counts. An unknown goal exits 2. |
+| `goal list [YYYY\|YYYY-Qq] [--status …]` | Goals of the period (default: the current year, in any status); a quarter also lists its goals' yearly parents. The yearly parents of the listed quarterly goals are always listed, whatever their status. Human: yearly goals with their quarterly goals nested, each with its effort count and "needs closing" marked. JSON: `goals`, flat in the same order (each yearly goal followed by its quarterly goals), each with `id`, `title`, `status` (`null` when not a goal status), `closed`, `parent` (a node ID; `null` for yearly), `path`, `needsClosing`, `efforts` (count). |
+| `goal info <id>` | One goal (its fields as in `goal list`, at the top level) and its subtree: `goals`, a yearly goal's quarterly goals by quarter (empty for a quarterly goal), then efforts → task counts by status. An unknown goal exits 2. |
 | `effort new <slug> --title … --goal YYYY-Qq-Gn` | Creates the effort note from its template (`status: planned`). The goal must be an open quarterly goal; the slug must be `[a-z0-9-]` and not the name of any note. |
 | `effort set <slug> [--status …] [--title …] [--goal …]` | Updates the frontmatter, writing or removing `closed` with the status. A goal of another quarter carries the effort over. |
 | `effort list [YYYY-Qq] [--status …] [--goal …]` | Default: every `planned`/`active` effort in any quarter, carried-over ones marked. With a quarter: the efforts whose goal is in it, in any status. JSON: `efforts`, each with `id`, `title`, `status`, `closed`, `goal`, `quarter`, `carriedOver`, `path`, task counts by status. |
@@ -373,7 +377,7 @@ The native binary keeps per-Tab latency low; the target is under 50 ms per call 
 
 - **Taskwarrior failures:** exit 4, include `task`'s stderr; no partial writes (validate first, write last).
 - **Unreadable note:** warning on stderr (or in the JSON `warnings` array, each with `path`, `message` and `hint`), note skipped; other notes still load. Frontmatter that is not valid YAML is read through the fallback without a warning or a `check` problem: ztk reads it correctly, and the migration (§9) quotes the values other tools would misread.
-- **Writes:** atomic (temp file in the same directory + rename). Re-read a file right before modifying it, since it may be open in nvim. Updates to an existing note change only its frontmatter; the body is never touched.
+- **Writes:** new notes are created without overwriting an existing file. Updates to an existing note re-read it right before changing it (it may be open in nvim) and rewrite it in place, changing only its frontmatter: the body is kept byte for byte. Other frontmatter fields keep their values, though YAML may quote them differently.
 - **Validation:** unknown effort/goal/parent, missing project, or a duplicate slug → exit 3 with the valid options listed.
 - **No silent creation:** referencing a non-existent effort never auto-creates it.
 

@@ -425,6 +425,73 @@ class SearchCommandTest {
       assertThat(byPath.get(zettel.toString()).has("pdf")).isFalse();
    }
 
+   @Test
+   void searchNamesGoalsByTheirGoalIdAndReadsEverythingElseUnderGoalsAsOther() throws IOException {
+      String content = """
+            ---
+            title: Replication
+            ---
+
+            Replication must survive partitions.
+            """;
+      Path yearly = note("goals/2026/2026-G1-provably-correct.md", content);
+      Path quarterly = note("goals/2026/Q4/2026-Q4-G1-fix-bugs.md", content);
+      // Material: any folder inside a level, even holding a file named like a goal.
+      Path material = note("goals/2026/kickoff/notes.md", content);
+      Path materialNamedLikeAGoal = note("goals/2026/kickoff/2026-G5-draft.md", content);
+      // Directly in a level, but not named after a goal ID of that level.
+      Path unnamed = note("goals/2026/draft.md", content);
+      Path wrongLevel = note("goals/2026/Q4/2026-G2-misplaced.md", content);
+      Path wrongYear = note("goals/2026/2025-G3-last-year.md", content);
+      Path outsideLevels = note("goals/README.md", content);
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "search", "replication");
+
+      assertThat(result.exitCode()).isZero();
+      Map<String, JsonNode> byPath = byPath(JSON.readTree(result.out()).path("results"));
+      assertThat(byPath).hasSize(8);
+      assertThat(byPath.get(yearly.toString()).path("id").asString()).isEqualTo("goal:2026-G1");
+      assertThat(byPath.get(yearly.toString()).path("type").asString()).isEqualTo("goal");
+      assertThat(byPath.get(quarterly.toString()).path("id").asString()).isEqualTo("goal:2026-Q4-G1");
+      assertThat(byPath.get(quarterly.toString()).path("type").asString()).isEqualTo("goal");
+      for (Path other : new Path[] { material, materialNamedLikeAGoal, unnamed, wrongLevel, wrongYear, outsideLevels }) {
+         JsonNode found = byPath.get(other.toString());
+         assertThat(found.path("type").asString()).as(other.toString()).isEqualTo("other");
+         assertThat(found.path("id").asString()).as(other.toString()).startsWith("note:goals/");
+      }
+   }
+
+   @Test
+   void searchWithTypeGoalFindsOnlyGoals() throws IOException {
+      String content = """
+            ---
+            title: Replication
+            ---
+
+            Replication must survive partitions.
+            """;
+      note("goals/2026/2026-G1-provably-correct.md", content);
+      note("goals/2026/Q4/2026-Q4-G1-fix-bugs.md", content);
+      note("goals/2026/kickoff/notes.md", content);
+      note("zettel/20261015-replication.md", content);
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "search", "replication", "--type", "goal");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(JSON.readTree(result.out()).path("results").valueStream().map(found -> found.path("id").asString()))
+            .containsExactlyInAnyOrder("goal:2026-G1", "goal:2026-Q4-G1");
+   }
+
+   /**
+    * Indexes search results by their path.
+    *
+    * @param results the {@code results} array.
+    * @return each result under its absolute path.
+    */
+   private static Map<String, JsonNode> byPath(JsonNode results) {
+      return results.valueStream().collect(Collectors.toMap(found -> found.path("path").asString(), found -> found));
+   }
+
    /**
     * Sets a note's modification time, which orders search results that are otherwise equal.
     *

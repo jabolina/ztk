@@ -1,7 +1,6 @@
 package io.github.jabolina.ztk.graph;
 
 import java.nio.file.Path;
-import java.util.Locale;
 import java.util.Optional;
 
 import io.github.jabolina.ztk.notes.Note;
@@ -122,7 +121,7 @@ public sealed interface Node extends JsonWritable {
          // Null rather than left out, so every task has the same fields.
          target.put("path", path().map(Path::toString).orElse(null));
          // Lowercase, as Taskwarrior prints it.
-         target.put("status", task.status().name().toLowerCase(Locale.ROOT));
+         target.put("status", task.status().label());
          return target;
       }
    }

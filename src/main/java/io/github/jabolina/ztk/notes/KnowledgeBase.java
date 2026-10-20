@@ -19,11 +19,9 @@ import java.util.stream.Stream;
 
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.configuration.Folders;
-import tools.jackson.core.JacksonException;
+import io.github.jabolina.ztk.util.Frontmatter;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.MissingNode;
-import tools.jackson.databind.node.ObjectNode;
-import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
  * The notes under {@code data.location}, read from disk on every call.
@@ -49,23 +47,24 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  */
 public final class KnowledgeBase {
 
-   private static final YAMLMapper YAML = YAMLMapper.shared();
-   private static final String FRONTMATTER_DELIMITER = "---";
    private static final String EXTENSION = ".md";
 
    // Instructions for AI agents, not knowledge.
    private static final Set<String> NOT_NOTES = Set.of("AGENTS.md", "CLAUDE.md");
 
    private final Configuration configuration;
+   private final PlanningNotes planning;
 
    // The first segment of every configured folder, e.g. "notes" for notes/zettel: never a project folder.
    private final Set<Path> reserved;
 
    /**
     * @param configuration the configuration giving the knowledge base location and its folders.
+    * @param planning recognizes the notes that are planning items, such as goals.
     */
-   public KnowledgeBase(Configuration configuration) {
+   public KnowledgeBase(Configuration configuration, PlanningNotes planning) {
       this.configuration = configuration;
+      this.planning = planning;
       // Folders are always inside data.location.
       this.reserved = configuration.folders().all().stream()
             .map(folder -> configuration.dataLocation().relativize(folder).getName(0))
@@ -232,15 +231,15 @@ public final class KnowledgeBase {
 
          // Lines read before the body starts, so body line numbers match the file's.
          int consumed;
-         if (FRONTMATTER_DELIMITER.equals(first)) {
+         if (Frontmatter.DELIMITER.equals(first)) {
             List<String> fields = new ArrayList<>();
-            for (String line = content.readLine(); line != null && !line.equals(FRONTMATTER_DELIMITER); line = content.readLine()) {
+            for (String line = content.readLine(); line != null && !line.equals(Frontmatter.DELIMITER); line = content.readLine()) {
                fields.add(line);
             }
             // The opening and closing delimiters.
             // A frontmatter never closed takes the whole file.
             consumed = fields.size() + 2;
-            frontmatter = frontmatter(fields);
+            frontmatter = Frontmatter.parse(fields);
             body = content.lines();
          } else {
             // No frontmatter defined.
@@ -257,11 +256,13 @@ public final class KnowledgeBase {
 
          // Read from the note itself, so search never needs Taskwarrior.
          Optional<String> task = frontmatter.path("task_uuid").asStringOpt();
+         Optional<String> goal = planning.goal(file);
          Note.Header header = new Note.Header(name(file), file, title, Files.getLastModifiedTime(file).toInstant());
-         NoteType type = type(file, task.isPresent());
+         NoteType type = type(file, task.isPresent(), goal.isPresent());
          Note note = switch (type) {
             case TASK -> new Note.Task(header, task.orElseThrow());
             case PAPER -> new Note.Paper(header, frontmatter.path("pdf").asStringOpt().map(file::resolveSibling));
+            case GOAL -> new Note.Goal(header, goal.orElseThrow());
             default -> new Note.Plain(header, type);
          };
 
@@ -295,48 +296,6 @@ public final class KnowledgeBase {
    }
 
    /**
-    * Parses the frontmatter lines.
-    *
-    * <p>
-    * The lines are read as YAML. When they are not valid YAML, they are read as flat {@code key: value} lines
-    * instead, the only shape ztk and the bash script write.
-    * </p>
-    *
-    * @param fields the lines between the delimiters.
-    * @return the parsed fields; a missing node when there are none, so lookups on it find nothing.
-    */
-   private static JsonNode frontmatter(List<String> fields) {
-      if (fields.isEmpty()) {
-         return MissingNode.getInstance();
-      }
-      try {
-         return YAML.readTree(String.join("\n", fields));
-      } catch (JacksonException e) {
-         // The bash script wrote values unquoted, so "title: ISPN-1234: Fix the merge" is not valid YAML: the second
-         // ": " reads as a nested mapping. Losing those notes would be worse than reading them leniently.
-         return flat(fields);
-      }
-   }
-
-   /**
-    * Reads frontmatter lines as flat {@code key: value} pairs, without YAML rules.
-    *
-    * @param fields the lines between the delimiters.
-    * @return each top-level key and the rest of its line, stripped; lines without a key are ignored.
-    */
-   private static JsonNode flat(List<String> fields) {
-      ObjectNode node = YAML.createObjectNode();
-      for (String field : fields) {
-         int colon = field.indexOf(':');
-         // Indented lines continue a YAML value; the bash script never wrote any, so they carry nothing to read here.
-         if (colon > 0 && !Character.isWhitespace(field.charAt(0))) {
-            node.put(field.substring(0, colon).strip(), field.substring(colon + 1).strip());
-         }
-      }
-      return node;
-   }
-
-   /**
     * Names a note by its place in the knowledge base.
     *
     * @param file the note's file.
@@ -362,9 +321,14 @@ public final class KnowledgeBase {
     *
     * @param file the note's file.
     * @param taskNote whether the note names a task in its frontmatter.
+    * @param goal whether the note is a goal's own note.
     * @return the note type.
     */
-   private NoteType type(Path file, boolean taskNote) {
+   private NoteType type(Path file, boolean taskNote, boolean goal) {
+      // Any other note under the goals folder is material: the folder is reserved, so it reads as other below.
+      if (goal) {
+         return NoteType.GOAL;
+      }
       Folders folders = configuration.folders();
       if (file.startsWith(folders.zettel())) {
          return NoteType.ZETTEL;

@@ -1,7 +1,6 @@
 package io.github.jabolina.ztk.taskwarrior;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import io.github.jabolina.ztk.util.JsonWritable;
@@ -64,7 +63,7 @@ public record Task(
       target.put("uuid", uuid);
       target.put("description", description);
       // Lowercase, to follow the same as Taskwarrior.
-      target.put("status", status.name().toLowerCase(Locale.ROOT));
+      target.put("status", status.label());
       // A null value is written as JSON null.
       target.put("project", project.orElse(null));
       ArrayNode array = target.putArray("tags");

@@ -10,6 +10,7 @@ import io.github.jabolina.ztk.graph.KnowledgeGraph;
 import io.github.jabolina.ztk.notes.KnowledgeBase;
 import io.github.jabolina.ztk.notes.Papers;
 import io.github.jabolina.ztk.notes.Zettels;
+import io.github.jabolina.ztk.planning.Goals;
 import io.github.jabolina.ztk.search.Search;
 import io.github.jabolina.ztk.tasks.Tasks;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
@@ -36,6 +37,7 @@ public final class Context {
    private Zettels zettels;
    private Search search;
    private Papers papers;
+   private Goals goals;
 
    /**
     * @param env the process environment.
@@ -122,7 +124,7 @@ public final class Context {
     * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
     */
    public KnowledgeBase knowledgeBase() {
-      return new KnowledgeBase(configuration());
+      return new KnowledgeBase(configuration(), goals());
    }
 
    /**
@@ -138,6 +140,17 @@ public final class Context {
     */
    public KnowledgeGraph graph() {
       return KnowledgeGraph.read(knowledgeBase(), store());
+   }
+
+   /**
+    * @return the goals of the knowledge base, created on first use.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public Goals goals() {
+      if (goals == null) {
+         goals = new Goals(configuration(), Clock.systemDefaultZone());
+      }
+      return goals;
    }
 
    /**

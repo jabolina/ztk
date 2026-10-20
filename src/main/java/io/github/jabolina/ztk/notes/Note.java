@@ -58,9 +58,10 @@ public sealed interface Note extends JsonWritable {
     */
    record Plain(Header header, NoteType type) implements Note {
       public Plain {
-         // A task note without its task, or a paper without its PDF, would lose what makes it that type.
-         if (type == NoteType.TASK || type == NoteType.PAPER) {
-            throw new IllegalArgumentException("Task and paper notes have their own variants: use Note.Task or Note.Paper");
+         // A task note without its task, a paper without its PDF, or a goal without its ID would lose what makes it
+         // that type.
+         if (type == NoteType.TASK || type == NoteType.PAPER || type == NoteType.GOAL) {
+            throw new IllegalArgumentException("Task, paper and goal notes have their own variants: use Note.Task, Note.Paper or Note.Goal");
          }
       }
    }
@@ -89,7 +90,29 @@ public sealed interface Note extends JsonWritable {
    }
 
    /**
-    * @return the node ID, e.g. {@code note:zettel/20261015-causality}.
+    * A goal's own note: the goal itself, not a note about it.
+    *
+    * @param header The note's common data.
+    * @param goal   The goal ID, from the file name, e.g. {@code 2026-Q4-G1}.
+    */
+   record Goal(Header header, String goal) implements Note {
+
+      /**
+       * @return the goal's node ID, e.g. {@code goal:2026-Q4-G1}.
+       */
+      @Override
+      public String id() {
+         return "goal:" + goal;
+      }
+
+      @Override
+      public NoteType type() {
+         return NoteType.GOAL;
+      }
+   }
+
+   /**
+    * @return the node ID, e.g. {@code note:zettel/20261015-causality}, or {@code goal:2026-G1} for a goal.
     */
    default String id() {
       return "note:" + header().name();
@@ -114,7 +137,7 @@ public sealed interface Note extends JsonWritable {
    @Override
    default ObjectNode writeJson(ObjectNode target) {
       Header header = header();
-      target.put("id", "note:" + header.name());
+      target.put("id", id());
       target.put("path", header.path().toString());
       target.put("type", type().label());
       target.put("title", header.title());

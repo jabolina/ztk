@@ -1,6 +1,6 @@
 package io.github.jabolina.ztk.notes;
 
-import java.util.Locale;
+import io.github.jabolina.ztk.util.Labeled;
 
 /**
  * The kind of a note, given by the folder it lives in.
@@ -8,7 +8,7 @@ import java.util.Locale;
  * @since 1.0
  * @author José Bolina
  */
-public enum NoteType {
+public enum NoteType implements Labeled {
    /**
     * A note in the zettel folder.
     */
@@ -30,14 +30,13 @@ public enum NoteType {
    PROJECT,
 
    /**
-    * A note in no folder ztk gives a meaning to, e.g. at the root of the knowledge base.
+    * A yearly or quarterly goal: a note directly in its level of the goals folder, named after the goal's ID.
     */
-   OTHER;
+   GOAL,
 
    /**
-    * @return the name used in JSON results and on the command line, e.g. {@code zettel}.
+    * A note in no folder ztk gives a meaning to, e.g. at the root of the knowledge base, or material kept next to a
+    * goal.
     */
-   public String label() {
-      return name().toLowerCase(Locale.ROOT);
-   }
+   OTHER;
 }

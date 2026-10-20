@@ -8,9 +8,17 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-20, design agreed)
+## Where we left off (2026-10-20, Task 1 done)
 
-The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. No code yet. Next: Task 1.
+The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. Task 1 (Goals) is done: `goal new|set|list|info`, and goal notes read as `goal:` nodes in `search`. Next: Task 2 (Efforts and their tasks).
+
+What Task 1 left in place for the next tasks:
+
+- `planning` package: `Goals` (create, update, list, info; implements `notes.PlanningNotes`), `Goal`, `GoalStatus` (`Labeled`, `closed()`), sealed `Period` (`OfYear`/`OfQuarter`, `folder`, `end`, `ofYear`, `quarters`), package-private `Levels` (which files are goals). `Goals` methods take records (`Details`, `Changes`), never `Optional` parameters.
+- `notes.PlanningNotes` is how the knowledge base learns which notes are goals without knowing the layout; Task 2 adds `effort(Path)` to it, and may let it skip material folders during scans.
+- `util`: `Frontmatter` (read, parse, render, `update` in place keeping the body byte for byte, `timestamp`), `Slugs` (`of`, `of(text, max)`, `valid`), `Labeled` (lowercase enum labels, `parse`, `labels`).
+- Until Task 3, a goal note is a `note`-kind graph node with a `goal:` ID, and `graph` does not find it by file name.
+- Unreadable goal files fail the command, naming the file; Task 3's `check` reports them.
 
 **Working agreement:** TDD; Claude writes tests and snippets, the user writes production code and runs the tests. Tasks are large: inside one, walk in larger strides (several behaviors per step when they are mechanical). Commit once a whole task is done. Verify Æsh/Taskwarrior behavior in the scratchpad, never against real data. Real notes in `~/cerebro` are only read, never written; nothing about this work goes there.
 

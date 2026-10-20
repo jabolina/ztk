@@ -1,6 +1,5 @@
 package io.github.jabolina.ztk.notes;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -9,17 +8,14 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.SequencedMap;
 
-import tools.jackson.databind.node.ObjectNode;
-import tools.jackson.dataformat.yaml.YAMLMapper;
-import tools.jackson.dataformat.yaml.YAMLWriteFeature;
+import io.github.jabolina.ztk.util.Frontmatter;
+import io.github.jabolina.ztk.util.Slugs;
 
 /**
- * Writes and reads note files in the knowledge base.
+ * Writes new note files in the knowledge base.
  *
  * <p>
  * Every note created by ztk has the same layout: a file named after its creation day and title, a YAML frontmatter
@@ -30,13 +26,6 @@ import tools.jackson.dataformat.yaml.YAMLWriteFeature;
  * @author José Bolina
  */
 public final class NoteFiles {
-
-   // Writes frontmatter quoting values only when YAML requires it, numbers included (so "123" stays a string).
-   private static final YAMLMapper YAML = YAMLMapper.builder()
-         .enable(YAMLWriteFeature.MINIMIZE_QUOTES, YAMLWriteFeature.ALWAYS_QUOTE_NUMBERS_AS_STRINGS)
-         // The "---" delimiters are written explicitly, since they also close the block.
-         .disable(YAMLWriteFeature.WRITE_DOC_START_MARKER)
-         .build();
 
    // File name prefix, e.g. 20261015.
    private static final DateTimeFormatter DAY = DateTimeFormatter.BASIC_ISO_DATE;
@@ -58,10 +47,10 @@ public final class NoteFiles {
       // Sequenced to keep insertion order.
       SequencedMap<String, String> frontmatter = new LinkedHashMap<>();
       frontmatter.put("title", title);
-      frontmatter.put("date", date(now));
+      frontmatter.put("date", Frontmatter.timestamp(now));
       frontmatter.putAll(fields);
 
-      return write(directory, now.toLocalDate().format(DAY) + "-" + slug(title), render(frontmatter, body));
+      return write(directory, now.toLocalDate().format(DAY) + "-" + Slugs.of(title), Frontmatter.render(frontmatter, body));
    }
 
    /**
@@ -77,7 +66,7 @@ public final class NoteFiles {
       try {
          Files.createDirectories(file.getParent());
          // CREATE_NEW: an existing note is never overwritten.
-         return Files.writeString(file, render(frontmatter, body), StandardOpenOption.CREATE_NEW);
+         return Files.writeString(file, Frontmatter.render(frontmatter, body), StandardOpenOption.CREATE_NEW);
       } catch (IOException e) {
          throw new UncheckedIOException(e);
       }
@@ -112,81 +101,6 @@ public final class NoteFiles {
          }
       } catch (IOException e) {
          throw new UncheckedIOException(e);
-      }
-   }
-
-   /**
-    * Renders a note: the frontmatter between {@code ---} delimiters, a blank line, then the body.
-    *
-    * @param frontmatter the frontmatter fields, in order.
-    * @param body the Markdown after the frontmatter.
-    * @return the note content.
-    */
-   private static String render(SequencedMap<String, String> frontmatter, String body) {
-      // ObjectNode keeps insertion order, so the keys appear exactly in this order.
-      ObjectNode node = YAML.createObjectNode();
-      frontmatter.forEach(node::put);
-      // The "---" delimiters are written explicitly, since the mapper does not close the block.
-      return "---\n" + YAML.writeValueAsString(node) + "---\n\n" + body;
-   }
-
-   /**
-    * Turns a task description into a file name fragment.
-    *
-    * <p>
-    * Same rule as the original shell script: lower case, every run of characters other than ASCII letters and digits
-    * becomes a single {@code -}, without leading or trailing dashes.
-    * </p>
-    *
-    * @param description the task description.
-    * @return the slug, e.g. {@code fix-flaky-test}.
-    */
-   static String slug(String description) {
-      return description.toLowerCase(Locale.ROOT)
-            .replaceAll("[^a-z0-9]+", "-")
-            .replaceAll("^-|-$", "");
-   }
-
-   /**
-    * Formats a note creation date.
-    *
-    * @param now the creation time.
-    * @return the ISO-8601 date with offset, e.g. {@code 2026-10-15T09:30:00+02:00}.
-    */
-   private static String date(OffsetDateTime now) {
-      // Seconds precision, always explicit: toString() drops ":00" seconds, and a real clock carries nanoseconds.
-      return now.truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-   }
-
-   /**
-    * Tells whether a note's frontmatter contains a line.
-    *
-    * <p>
-    * Only the frontmatter is read, so the cost does not depend on the size of the note.
-    * </p>
-    *
-    * @param file the note to read.
-    * @param line the line to look for, e.g. {@code task_uuid: <uuid>}.
-    * @return whether the frontmatter contains the line. A file without frontmatter, or that cannot be read as UTF-8,
-    *         never does.
-    */
-   public static boolean frontmatterContains(Path file, String line) {
-      try (BufferedReader reader = Files.newBufferedReader(file)) {
-         // The frontmatter must open on the first line; any other file cannot be a task note.
-         if (!"---".equals(reader.readLine())) {
-            return false;
-         }
-         // Stops at the closing delimiter, or at the end of a file whose frontmatter is never closed.
-         for (String current = reader.readLine(); current != null && !current.equals("---"); current = reader.readLine()) {
-            // strip() tolerates trailing spaces and Windows line endings.
-            if (current.strip().equals(line)) {
-               return true;
-            }
-         }
-         return false;
-      } catch (IOException e) {
-         // Unreadable or not UTF-8: it cannot be the note we look for, and must not stop the search.
-         return false;
       }
    }
 }

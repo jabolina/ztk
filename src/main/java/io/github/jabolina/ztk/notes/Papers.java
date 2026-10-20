@@ -15,6 +15,7 @@ import java.util.SequencedMap;
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.util.JsonWritable;
+import io.github.jabolina.ztk.util.Slugs;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -152,7 +153,7 @@ public final class Papers {
          throw ZtkException.usage("The venue '" + venue + "' must be a single folder name, e.g. ATC or SIGMOD.");
       }
 
-      String slug = NoteFiles.slug(details.title());
+      String slug = Slugs.of(details.title());
       // File names keep only ASCII letters and digits, so some titles leave nothing to name the pair after.
       if (slug.isEmpty()) {
          throw ZtkException.usage("The title '" + details.title() + "' has no letters or digits to name the files "

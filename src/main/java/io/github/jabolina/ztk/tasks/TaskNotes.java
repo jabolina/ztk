@@ -15,6 +15,7 @@ import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.notes.NoteFiles;
 import io.github.jabolina.ztk.taskwarrior.Task;
+import io.github.jabolina.ztk.util.Frontmatter;
 
 /**
  * Locates and creates the notes attached to tasks.
@@ -102,7 +103,7 @@ final class TaskNotes {
          return files
                .filter(file -> file.getFileName().toString().endsWith(".md"))
                .filter(Files::isRegularFile)
-               .filter(file -> NoteFiles.frontmatterContains(file, marker))
+               .filter(file -> Frontmatter.contains(file, marker))
                .findFirst();
       } catch (IOException e) {
          throw new UncheckedIOException(e);

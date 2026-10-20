@@ -50,7 +50,7 @@ Task 6 (completion) is done and committed (191 tests in the suite). Only behavio
 Task 7 (native smoke test) is done: `scripts/native-smoke.sh` also runs `paper new` (built-in template in the native image), `search`, `graph` and `check` on a generated knowledge base of 1,000 linked notes, `graph` node and comma-list completion, and times them. Native binary, 2026-10-19: completion 2 ms (subcommands), 13 ms (task IDs), 21 ms (graph nodes), against 50 ms; `search` 34 ms and `graph` 46 ms on 1,000 notes, against 300 ms. Every "Done when" item below holds, so Phase 2 is complete.
 
 **Next steps, in order:**
-1. Phase 3 (goals and efforts): plan it first, as Phase 2 was (spec, `CONTEXT.md`, then a plan with its own "Where we left off").
+1. Phase 3 (goals and efforts): designed on 2026-10-20; continue in `docs/plans/2026-10-20-phase3-planning.md`.
 2. Open question, not done: reject a folder nested inside another (`notes` and `notes/papers`)? The spec only rejects the same folder.
 3. Maybe: `--year twenty` prints only Æsh's "Invalid integer value"; a `YearConverter` could name the option and give an example.
 4. Phase 4: summary notes are hubs in `graph`, like projects (spec §6.2). Seen on the real base: from a task note, depth 2 walks into `000-Project-Index` and `Weekly-Status-*` and out to every task they list; `--depth 1` or `--edges note,project` avoid it until the migration.

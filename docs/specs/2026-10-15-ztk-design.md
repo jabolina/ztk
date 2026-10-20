@@ -71,11 +71,13 @@ If no config file is found, or `data.location` is missing or not a directory, ev
 ```
 goals/
   2026/
-    G1-infinispan-provably-correct.md      # yearly goal 2026-G1
+    2026-G1-infinispan-provably-correct.md # yearly goal 2026-G1
+    kickoff/                               # material: any other folder
     Q4/
-      G1-fix-found-data-loss-bugs.md       # quarterly goal 2026-Q4-G1
+      2026-Q4-G1-fix-found-data-loss-bugs.md # quarterly goal 2026-Q4-G1
 efforts/
-  infinijepsen-demo.md                     # effort
+  infinijepsen-demo.md                     # effort infinijepsen-demo
+  infinijepsen-demo/                       # material
 <Project>/                                 # task notes (unchanged)
   20260526-....md
 papers/<venue>/<year>/<slug>.{pdf,md}      # PDF and its paper note, filed by `paper new`
@@ -91,20 +93,27 @@ summaries/
 
 | Entity | Stored in | ID | Relations |
 |---|---|---|---|
-| Yearly goal | `goals/YYYY/Gn-<slug>.md` | `YYYY-Gn` | — |
-| Quarterly goal | `goals/YYYY/Qq/Gn-<slug>.md` | `YYYY-Qq-Gn` | frontmatter `parent: YYYY-Gm` (required) |
-| Effort | `efforts/<slug>.md` | `<slug>` | frontmatter `goal: YYYY-Qq-Gn` (optional), `status`, `quarter` |
+| Yearly goal | `goals/YYYY/YYYY-Gn-<slug>.md` | `YYYY-Gn` | frontmatter `title`, `status`, `closed`, `date` |
+| Quarterly goal | `goals/YYYY/Qq/YYYY-Qq-Gn-<slug>.md` | `YYYY-Qq-Gn` | frontmatter `parent: YYYY-Gm` (required, same year), `title`, `status`, `closed`, `date` |
+| Effort | `efforts/<slug>.md` | `<slug>` | frontmatter `goal: YYYY-Qq-Gn` (required), `title`, `status`, `closed`, `date` |
 | Task | Taskwarrior | id / uuid | `project` (required), UDA `effort` (optional), UDA `note` |
 | Task note | `<Project>/*.md` | path | frontmatter `task_uuid` |
 | Zettel | `zettel/*.md` | path | `[[links]]` |
 | Paper | `papers/**/*.md` | path | `venue`, `authors`, `pdf` (relative to the note), `[[links]]` |
 | Session | section in `journal/YYYY-MM-DD.md` | `YYYY-MM-DD#n` | task uuid, title, summary |
 
-Goal numbers (`Gn`) are allocated sequentially per year (yearly) or per quarter (quarterly). Slugs are lowercase `[a-z0-9-]`; goal file slugs are derived from `--title` (lowercased, non-alphanumerics collapsed to `-`, max 60 chars) unless `--slug` is given. Effort slugs are given explicitly.
+Quarters are calendar quarters (Q1 = Jan–Mar) of calendar years. A goal's ID is read from its file name alone, which starts with it; the folder must agree (`check` reports `invalid-goal-name` otherwise). Goal numbers (`Gn`) are allocated per year (yearly) or per quarter (quarterly) as the highest number in use plus one, so a dropped goal keeps its number. Slugs are lowercase `[a-z0-9-]`; goal file slugs are derived from `--title` (lowercased, non-alphanumerics collapsed to `-`, max 60 chars) unless `--slug` is given. Effort slugs are given explicitly and must not be the name of any note in the knowledge base, so a wikilink to an effort is never ambiguous. Neither the slug nor the ID ever changes through ztk: tasks, efforts and wikilinks point to them, and ztk rewrites none of those (`--title` changes only `title`).
 
-An effort's `quarter` must equal its goal's quarter; `effort new`/`effort set` exit 3 on a mismatch. Carrying an effort over to a new quarter therefore means setting both `--quarter` and a goal in that quarter (or clearing `--goal none`).
+**Levels and material.** `goals/<YYYY>/`, `goals/<YYYY>/Q<q>/` and `efforts/` are levels: every `.md` directly in a level is a goal or effort. Any other folder inside them holds **material** (drafts, PDFs, notes related to one goal or effort, e.g. `efforts/infinijepsen-demo/`), whose Markdown files are plain notes of type `other`.
 
-**Effort status:** `planned | active | done | dropped`. An effort whose quarter has passed and is not `done`/`dropped` is reported as "carried over" in summaries (see §6.3).
+Every effort has a quarterly goal, and its quarter is its goal's: there is no `quarter` field. Carrying an effort over to a new quarter means pointing it at a goal of that quarter (`effort set --goal`); the file never moves.
+
+**Status**, set only by the user (never derived from tasks, never changed as a side effect):
+
+- Goals (both levels): `open | reached | missed | dropped`. `missed` means tried and not made; `dropped` means it no longer matters. An `open` goal whose quarter (or year) has ended **needs closing**.
+- Efforts: `planned | active | done | dropped`. An effort that is neither `done` nor `dropped` and whose goal's quarter has ended is **carried over** (see §6.3).
+- `closed` holds when the status last moved to a closing one (`reached`/`missed`/`dropped`, `done`/`dropped`), written by `goal set`/`effort set` and removed when the status moves back to an open one. Summaries place a closed goal or effort in the period of its `closed`.
+- ztk never puts open work under something closed: `effort assign` and `add --effort` refuse a `done`/`dropped` effort for a pending task (a completed task may be assigned after the fact), and `effort new`, `effort set --goal` and `goal new --parent` refuse a closed goal. Each refusal exits 3 with the command that reopens it.
 
 ### 4.3 Taskwarrior UDAs
 
@@ -119,8 +128,9 @@ Without the definition, Taskwarrior treats `note:x` as description text (`modify
 
 Type is inferred from location only, never from file names; existing notes need no frontmatter edits. ztk reads every `.md` under `data.location`, in every subfolder, skipping hidden directories and `AGENTS.md`/`CLAUDE.md` anywhere (instructions for agents, not knowledge). Frontmatter is read as YAML; when that fails, it is read as flat `key: value` lines (key before the first `: `), the only shape ztk and the bash script write, so a title the bash script left unquoted (`title: ISPN-1234: Fix the merge`, 55 of 276 notes today) is still read. A note that cannot be read at all (not UTF-8, no permission) is skipped with a warning.
 
-- under `folder.goals` → goal (yearly or quarterly by depth)
-- under `folder.efforts` → effort
+- directly in a goal level (`folder.goals`/`YYYY`, `folder.goals`/`YYYY`/`Qq`) → goal (yearly or quarterly by level)
+- directly in `folder.efforts` → effort
+- anywhere else under `folder.goals` or `folder.efforts` → `other` (material, §4.2)
 - under `folder.papers` → paper
 - under `folder.zettel` → zettel
 - under `folder.journal` → journal
@@ -132,31 +142,55 @@ Tags are not a ztk concept: projects and efforts group work, and a zettel linkin
 
 ### 4.5 Templates
 
-Goal note body:
+Goal and effort templates are built into ztk. Each section carries one italic line saying what it holds; the agent that discussed the goal with the user writes the content (see `ztk-planning`, §10). ztk writes no generated content into them: their tasks and efforts are always computed (`goal info`, `effort info`, `graph`), so nothing goes stale. After creation, ztk changes only their frontmatter.
+
+Yearly goal (big and open-ended, agreed with the manager):
 
 ```
+## Summary
+_One paragraph a newcomer understands: what this goal is about._
 ## Why it matters
-## What done looks like
+_For the team, the product and its users; and for you: the growth or visibility it brings._
+## Agreement
+_Who agreed (your manager), when, and what exactly was agreed, in their words where possible._
+## What success looks like
+_Signals that the goal was met, not hard metrics: it is open-ended on purpose._
 ## Out of scope
-## Efforts
-<!-- ztk:begin efforts -->
-<!-- ztk:end efforts -->
+## Open questions
 ## Retrospective
+_At the end of the year: the outcome, the evidence (efforts, summaries, links), what you learned, what you would do differently._
 ```
 
-Effort note body:
+Quarterly goal (smaller, achievable, checkable):
+
+```
+## Summary
+## Contribution
+_How reaching this moves the yearly goal forward._
+## Done when
+_A checklist of concrete, verifiable criteria; reached means every item holds._
+## Out of scope
+## Risks and dependencies
+_What could block it, and whom it depends on._
+## Retrospective
+_At the end of the quarter: each criterion met or not, the evidence, what you learned._
+```
+
+Effort (the working document agents read most):
 
 ```
 ## Context
-## Outcome / definition of done
+## Done when
+_A checklist, as for quarterly goals._
 ## Approach
-## Risks / open questions
-## Tasks
-<!-- ztk:begin tasks -->
-<!-- ztk:end tasks -->
+## Decisions
+_A dated log: "2026-11-02: chose X over Y, because …". Each session's agent reads it before changing course._
+## Risks and open questions
+## Outcome
+_When closed: what was delivered, its impact, links to the evidence. This feeds the quarterly retrospective._
 ```
 
-Content between `ztk:begin`/`ztk:end` markers is generated and rewritten by `ztk` (for example by `effort show --refresh`, `goal tree --refresh`, and any command that links a task or effort). Everything outside the markers belongs to the user or agent and is never modified.
+The body holds no wikilink to the parent goal: the frontmatter is the only source, and a copied link would go stale when an effort is carried over.
 
 Task-note, zettel and paper templates are built into ztk, with no user override. The paper template is based on the user's `papers/TEMPLATE.md` (frontmatter `title`, `authors`, `venue`, `link`, `date_read`, `pdf`, then the same eight sections, each with italic guidance on what it holds but without the original's examples, which named real topics and made every new paper note match searches for them); fields not given are left empty (`""`) instead of holding placeholders. `papers/TEMPLATE.md` becomes a leftover, with no special handling: the user deletes it (until then it reads as a paper).
 
@@ -171,9 +205,9 @@ Short summary, a few lines: what was done, where things are, what is next.
 
 ## 5. Graph and cross-referencing
 
-Every entity is a node with a uniform ID. JSON always prints the canonical form: `task:<uuid>` (full UUID, since numeric IDs change), `note:<path relative to data.location, without .md>`, `project:<name>`, `effort:<slug>`, `goal:<YYYY-Gn|YYYY-Qq-Gn>`.
+Every entity is a node with a uniform ID. JSON always prints the canonical form: `task:<uuid>` (full UUID, since numeric IDs change), `note:<path relative to data.location, without .md>`, `project:<name>`, `effort:<slug>`, `goal:<YYYY-Gn|YYYY-Qq-Gn>`. A goal's or effort's own file is that goal or effort node, never a `note:` node; a wikilink to the file reaches it.
 
-As input, commands accept the canonical forms plus `task:<id|short-uuid>`, a bare number (a task) and `note:<name>` or a bare name (a note, resolved like a wikilink written at the root). A name matching several notes exits 3 listing their canonical IDs; a name matching none exits 2. File paths are not accepted: JSON carries the ID next to every path.
+As input, commands accept the canonical forms plus `task:<id|short-uuid>`, a bare number (a task), a bare goal ID (`2026-Q4-G1`) and `note:<name>` or a bare name (a note or effort, resolved like a wikilink written at the root). A name matching several notes exits 3 listing their canonical IDs; a name matching none exits 2. File paths are not accepted: JSON carries the ID next to every path.
 
 **Wikilinks:** `[[target]]` outside fenced code blocks (```` ``` ````/`~~~`) and inline code spans. The target is the text before any `|` or `#`, trimmed, and matches a note's file name without `.md`, exactly and case-sensitively. Frontmatter is not scanned. Resolution, in order:
 
@@ -189,8 +223,8 @@ As input, commands accept the canonical forms plus `task:<id|short-uuid>`, a bar
 | note ↔ note, note → task (`link`) | `[[wikilinks]]`, indexed in both directions (links + backlinks) |
 | task ↔ task note (`note`) | UDA `note`, with frontmatter `task_uuid` as fallback |
 | task → project (`project`) | Taskwarrior `project` |
-| task → effort | UDA `effort` |
-| effort → quarterly goal → yearly goal | frontmatter `goal`, `parent` |
+| task → effort (`effort`) | UDA `effort` |
+| effort → quarterly goal → yearly goal (`goal`) | frontmatter `goal`, `parent` |
 | goal/effort note ↔ any note | `[[wikilinks]]` in their bodies |
 
 ztk writes no links into existing notes: users and agents write wikilinks with their own tools.
@@ -214,15 +248,17 @@ The graph is built in memory per invocation by reading the notes (in parallel, o
 
 | Command | Behavior |
 |---|---|
-| `add <desc> project:X [taskwarrior attrs] [--effort <slug>]` | Creates the task **and its note** (`<project>/<YYYYMMDD>-<slug>.md`, linked through UDA `note`) and prints the note path. Requires a literal `project:<name>` and fails with code 3 without it, or if the effort does not exist, before anything is written. Sets UDA `effort`. Replaces the old `add` + `touch` sequence. |
+| `add <desc> project:X [taskwarrior attrs] [--effort <slug>]` | Creates the task **and its note** (`<project>/<YYYYMMDD>-<slug>.md`, linked through UDA `note`) and prints the note path. Requires a literal `project:<name>` and fails with code 3 without it, or if the effort does not exist or is `done`/`dropped`, before anything is written. Sets UDA `effort`. Replaces the old `add` + `touch` sequence. |
 | `start <id> [--editor]` | Single-active-task rule (exit 3 naming the active task); adds `+week`, removes `+review`; starting the active task again succeeds. Prints the note path; `--editor`/`-e` also opens it, and fails before starting outside an interactive session. Finds the note by UDA `note`, then by `task_uuid` frontmatter anywhere in the knowledge base (setting the UDA), and creates it otherwise; a task without a project fails with exit 3 before starting. Replaces the old `start` + `begin` pair. |
 | `stop` | Stops all active tasks and lists them (JSON: `tasks` array, empty when nothing was active; not an error). No longer shows `week`; use `ztk stop && ztk week`. |
 | `review <id>` | Stops the task if active (an inactive task is only tagged), adds `+review`, keeps its other tags (a week task stays in the week). Prints the task (JSON: `id`, `uuid`, `description`). |
 | `done <id>` | Removes `+week` and completes the task in one Taskwarrior command (an active task is stopped). An already completed task fails with exit 3. Prints the task, named by its short UUID since completed tasks have no ID (JSON: `id` 0, `uuid`, `description`). |
 | `current` | Lists the active task(s) with their note paths (JSON: `tasks` array of `id`, `uuid`, `description`, `note`). Read-only: a task started outside ztk shows no note (JSON `note: null`) and a hint to run `ztk start <id>`. Nothing active is not an error (exit 0, empty `tasks`); the note file's existence is not checked (`check` finds broken links). |
-| `info <id>` | Shows one task with its note path (JSON: the common task shape plus `note`, the absolute path or `null`); same rendering and read-only rule as `current`, on any task. An unknown task exits 2 with a hint to `ztk list`. This is how editors, scripts and agents reach a note: they open, grep or read the path with their own tools. |
+| `info <id>` | Shows one task with its note path and effort (JSON: the common task shape plus `note`, the absolute path or `null`); same rendering and read-only rule as `current`, on any task. An unknown task exits 2 with a hint to `ztk list`. This is how editors, scripts and agents reach a note: they open, grep or read the path with their own tools. |
 | `week [project]` | Pending `+week` tasks, review tasks highlighted. Human output is Taskwarrior's own table (an ad hoc `weekview` report: ID, Active, Project, Issue, Description), rendered with forced colors and no wrapping; colors are stripped from human output outside a terminal or with `NO_COLOR` (forcing colors also overrides a `color=off` in the user's taskrc). JSON: `tasks` array, the common task shape. The project matches by prefix and includes subprojects, as Taskwarrior does. An empty week is not an error. |
 | `list [project]` | Pending tasks that are not waiting, most urgent first, through the user's own `next` report, never cut at one screen (`limit:none`; `next` has `limit:page`). Same rendering, color, project matching and JSON rules as `week`. No match is not an error; the hint shows the `ztk add` to run. No fallthrough to Taskwarrior for unknown commands: same words would mean different things, and its output and exit codes break ztk's contracts. |
+
+The common task shape (JSON of every task command) has `id`, `uuid`, `description`, `status`, `project`, `tags`, `active`, `issue` and `effort` (the slug, or `null` for general work). From a task, `effort info <slug>` gives the goal chain; `context` (Phase 4) bundles it in one call.
 
 **Notes**
 
@@ -236,23 +272,26 @@ The graph is built in memory per invocation by reading the notes (in parallel, o
 
 | Command | Behavior |
 |---|---|
-| `goal new <YYYY\|YYYY-Qq> --title … [--parent YYYY-Gn] [--slug …]` | Creates the goal note from the template, allocates the ID, and prints the path (ID via `--json`, see §6.1). `--parent` required for quarterly goals. |
-| `goal list [YYYY\|YYYY-Qq]` | Goals in the period. |
-| `goal tree [YYYY]` | Yearly → quarterly → efforts → task counts by status. |
-| `goal show <id>` | Goal note plus its efforts and progress. |
-| `effort new <slug> --title … [--goal YYYY-Qq-Gn] [--quarter YYYY-Qq]` | Creates the effort note; `--quarter` defaults to the goal's quarter, or the current one. |
-| `effort show <slug>` | Goal chain, tasks by status, linked notes. |
-| `effort set <slug> [--status …] [--goal <id\|none>] [--quarter …]` | Updates frontmatter (validated as in §4.2). |
-| `effort list [--quarter …] [--status …]` | List efforts. |
-| `task-effort <task> <slug\|none>` | Sets or clears a task's effort. |
+| `goal new <YYYY\|YYYY-Qq> --title … [--parent YYYY-Gn] [--slug …]` | Creates the goal note from its template (`status: open`) and allocates the ID (§4.2). `--parent` is required for a quarterly goal and must name an open yearly goal of the same year. |
+| `goal set <id> [--status …] [--title …] [--parent …]` | Updates the frontmatter, writing or removing `closed` with the status (§4.2). |
+| `goal list [YYYY\|YYYY-Qq] [--status …]` | Goals of the period (default: the current year, in any status); a quarter also lists its goals' yearly parents. Human: yearly goals with their quarterly goals nested, each with its effort count and "needs closing" marked. JSON: `goals`, flat, each with `id`, `title`, `status`, `closed`, `parent` (`null` for yearly), `path`, `efforts` (count). |
+| `goal info <id>` | One goal (`id`, `title`, `status`, `closed`, `parent`, `path`) and its subtree: a yearly goal's quarterly goals → efforts → task counts by status; a quarterly goal's efforts → task counts. An unknown goal exits 2. |
+| `effort new <slug> --title … --goal YYYY-Qq-Gn` | Creates the effort note from its template (`status: planned`). The goal must be an open quarterly goal; the slug must be `[a-z0-9-]` and not the name of any note. |
+| `effort set <slug> [--status …] [--title …] [--goal …]` | Updates the frontmatter, writing or removing `closed` with the status. A goal of another quarter carries the effort over. |
+| `effort list [YYYY-Qq] [--status …] [--goal …]` | Default: every `planned`/`active` effort in any quarter, carried-over ones marked. With a quarter: the efforts whose goal is in it, in any status. JSON: `efforts`, each with `id`, `title`, `status`, `closed`, `goal`, `quarter`, `carriedOver`, `path`, task counts by status. |
+| `effort info <slug>` | One effort (`id`, `title`, `status`, `closed`, `path`), its goal chain (`goal: {id, title, status, path, parent: {…}}`) and its tasks by status (the common task shape plus `note`). An unknown effort exits 2. |
+| `effort assign <slug> <task…>` | Sets the effort of one or more tasks; refusals as in §4.2. |
+| `effort unassign <task…>` | Clears it: the tasks become general work. |
 
-All create/update commands are non-interactive when given their flags, so agents can use them directly. `goal new`/`effort new` follow the path-result rule in §6.1. `effort set` and `task-effort` print the updated node ID (human mode) or `{"schema":1,"id":…,"path":…}` (JSON mode).
+There are no delete commands: a goal or effort that no longer matters is `dropped`, which keeps it for summaries. Deleting its file by hand is the user's call; `check` then reports what still points to it.
+
+All create/update commands are non-interactive when given their flags, so agents can use them directly. `goal new`/`effort new` follow the path-result rule in §6.1. `goal set` and `effort set` print the updated node ID (human mode) or `{"schema":1,"id":…,"path":…}` (JSON mode); `effort assign`/`unassign` print the tasks (JSON: `tasks`, the common task shape).
 
 **Navigation**
 
 | Command | Behavior |
 |---|---|
-| `graph <node> [--depth N] [--kind k1,k2] [--type t1,t2] [--edges e1,e2] [--limit N]` | Neighborhood of a node, for agents first. Edges `link` (with `direction` out/in), `note`, `project`. Breadth-first, default depth 2; each node once, at its shortest depth, with the edge that reached it. Projects are hubs: reached but not expanded unless they are the start node. From Phase 4, summary notes (type `summary`) are hubs too: a summary links every task of its period, so walking through it would bury the nodes related to the start under that period's unrelated tasks. Until the migration (§9) moves them, the bash script's `Weekly-Status-*.md` and `000-Project-Index.md` are plain root notes and are walked through. Dangling links are shown as `dangling:<target>` nodes (title: the target; `path: null`), never expanded; a dangling ID is not accepted as the start node. `--kind` (node kinds: `note`, `task`, `project`, `dangling`), `--type` (note types, as for `search`; nodes that are not notes are kept) and `--edges` (`link`, `note`, `project`) restrict the walk itself: a node left out is neither listed nor walked through; the start node is always listed. Edge directions: `out` when `from` points to the node, `in` when it is pointed to; a task holds its `note` and `project` edges. JSON: flat `nodes` list ordered by depth, each with `id`, `kind`, `type` for notes (as `search` prints it), `title` (a task's description, a project's name), absolute `path` (a task's note path, a project's folder when it has one, otherwise `null`; `pdf` for papers), `status` for tasks, `depth`, and `via: {from, edge, direction}` (`null` for the start node; following `from` leads back to the start); then `warnings`, `truncated` and `hint` (`null` unless truncated). At most 50 nodes by default (`--limit`, 1 or more); a cut sets `truncated: true` with a hint to narrow, also printed on stderr for people. Human: a plain table (DEPTH, KIND, TYPE, TITLE, PATH). |
+| `graph <node> [--depth N] [--kind k1,k2] [--type t1,t2] [--edges e1,e2] [--limit N]` | Neighborhood of a node, for agents first. Edges `link` (with `direction` out/in), `note`, `project`, `effort` (task → effort), `goal` (effort → quarterly goal → yearly goal). Breadth-first, default depth 2; each node once, at its shortest depth, with the edge that reached it. Projects are hubs: reached but not expanded unless they are the start node. Goals and efforts are not hubs: from a task, depth 2 reaches its effort's other tasks and its goal. A `goal`/`effort` reference naming nothing gives no edge and no node (`check` reports it). From Phase 4, summary notes (type `summary`) are hubs too: a summary links every task of its period, so walking through it would bury the nodes related to the start under that period's unrelated tasks. Until the migration (§9) moves them, the bash script's `Weekly-Status-*.md` and `000-Project-Index.md` are plain root notes and are walked through. Dangling links are shown as `dangling:<target>` nodes (title: the target; `path: null`), never expanded; a dangling ID is not accepted as the start node. `--kind` (node kinds: `note`, `task`, `project`, `goal`, `effort`, `dangling`), `--type` (note types, as for `search`; nodes that are not notes are kept) and `--edges` (`link`, `note`, `project`, `effort`, `goal`) restrict the walk itself: a node left out is neither listed nor walked through; the start node is always listed. Edge directions: `out` when `from` points to the node, `in` when it is pointed to; a task holds its `note` and `project` edges. JSON: flat `nodes` list ordered by depth, each with `id`, `kind`, `type` for notes (as `search` prints it), `title` (a task's description, a project's name), absolute `path` (a task's note path, a project's folder when it has one, otherwise `null`; `pdf` for papers), `status` for tasks, `depth`, and `via: {from, edge, direction}` (`null` for the start node; following `from` leads back to the start); then `warnings`, `truncated` and `hint` (`null` unless truncated). At most 50 nodes by default (`--limit`, 1 or more); a cut sets `truncated: true` with a hint to narrow, also printed on stderr for people. Human: a plain table (DEPTH, KIND, TYPE, TITLE, PATH). |
 | `search <words…> [--type …] [--project …]` | Notes containing every word (case-insensitive, anywhere in the note); `"quoted words"` match a phrase. No regex, no fuzzy matching (compose with `fzf` over the JSON). Searches the body and the frontmatter `title`. JSON per note: `id`, `path`, `type`, `title`, `task` for task notes (from `task_uuid`), `pdf` for papers (absolute, resolved from the note's `pdf` field; `null` when it has none), up to 3 matching lines with line numbers. Order: title matches, then number of matching lines, then most recently modified file (the frontmatter `date` is not used: existing notes carry it in several non-ISO formats, or not at all). `--type` (comma-separated or repeated), `--project` (that project folder). No match exits 0 with an empty list. |
 | `context <task>` | One bundle sized for an agent: task attributes, effort and goal chain, note path plus its last `# Claude Summary` section, last 3 sessions for the task, and directly linked notes (titles + paths). |
 
@@ -268,7 +307,7 @@ All create/update commands are non-interactive when given their flags, so agents
 | Command | Behavior |
 |---|---|
 | `summary <week\|YYYY-Www\|YYYY-Qq\|YYYY>` or `summary --since <date\|duration>` | For the period (see §6.3): per quarterly goal → efforts → tasks completed and in progress (with dates and note paths); carried-over efforts; per project, "General work" (effort-less tasks); review queue. Yearly summaries group quarters under their yearly goals. `--write` saves the rendered Markdown to `summaries/<period>.md` and prints its path; it never overwrites an existing file without `--force`. |
-| `check [--code …] [--project …]` | Errors (exit 3 if any): `dangling-link`, `missing-note` (an open task's `note` points to a missing file), `task-without-project` (pending and waiting tasks only). Warnings (exit 0 when there are only warnings): `orphan-task-note` (`task_uuid` matches no task), `ambiguous-link`, `unreadable-note`. Phase 3 adds unknown efforts/goals and quarterly goals without a valid parent. The whole knowledge base is always read, since links resolve across folders; `--code` and `--project` (notes in the project's folder, tasks of the project) only filter what is reported, and the exit code follows the reported problems. One problem per wikilink, at its line: a target linked twice is two places to fix. JSON: `problems`, errors first then by path and line, each with `code`, `severity`, `id` (the node ID; `null` for an unreadable note), absolute `path`, `line` (`null` except for links), `message`, `hint`, `candidates` (the node IDs an ambiguous link could mean; `null` otherwise). Skipped notes are `unreadable-note` problems, so `check` prints no `warnings` array. `--project` keeps a task's problems by the task's project, the others by their path under the project folder; a project no task has and with no folder exits 2. Read-only, with no `--fix`: users and agents fix what it reports. Human: a table (SEVERITY, CODE, PATH as `path:line` for links, MESSAGE followed by its hint); with errors, a count on stderr. |
+| `check [--code …] [--project …]` | Errors (exit 3 if any): `dangling-link`, `missing-note` (an open task's `note` points to a missing file), `task-without-project` (pending and waiting tasks only). Warnings (exit 0 when there are only warnings): `orphan-task-note` (`task_uuid` matches no task), `ambiguous-link`, `unreadable-note`. Planning errors: `unknown-effort` (a task's `effort` names no effort; completed tasks included, since summaries count them), `missing-goal` (an effort without `goal`, a quarterly goal without `parent`), `unknown-goal` (`goal`/`parent` names no goal, or one of the wrong level or year), `invalid-status` (missing, or not one of its kind's), `invalid-goal-name` (a `.md` directly in a goal level whose name does not start with a goal ID of that level), `duplicate-goal` (two files with one goal ID). Planning warnings: `needs-closing` (an `open` goal whose period ended), `closed-mismatch` (`closed` on an open status, or missing on a closed one), `open-task-in-closed-effort` (a pending task in a `done`/`dropped` effort). Carried-over efforts are not problems: summaries and `effort list` show them. The whole knowledge base is always read, since links resolve across folders; `--code` and `--project` (notes in the project's folder, tasks of the project) only filter what is reported, and the exit code follows the reported problems. One problem per wikilink, at its line: a target linked twice is two places to fix. JSON: `problems`, errors first then by path and line, each with `code`, `severity`, `id` (the node ID; `null` for an unreadable note), absolute `path`, `line` (`null` except for links), `message`, `hint`, `candidates` (the node IDs an ambiguous link could mean; `null` otherwise). Skipped notes are `unreadable-note` problems, so `check` prints no `warnings` array. `--project` keeps a task's problems by the task's project, the others by their path under the project folder; a project no task has and with no folder exits 2. Read-only, with no `--fix`: users and agents fix what it reports. Human: a table (SEVERITY, CODE, PATH as `path:line` for links, MESSAGE followed by its hint); with errors, a count on stderr. |
 
 **Maintenance**
 
@@ -285,12 +324,13 @@ All create/update commands are non-interactive when given their flags, so agents
 - `--since <date|duration>` = rolling window from that point until now (a Taskwarrior-style duration such as `10d` or `1wk`, or an ISO date). Its file name is `summaries/since-<start-date>.md`.
 - **Completed** = tasks with `status:completed` and `end` in [start, end).
 - **In progress** and **review queue** = current state (`status:pending +week -review` / `status:pending +review`). Shown only when the period includes today; past periods do not reconstruct historical state.
-- **Efforts listed** under a quarterly goal = efforts whose `quarter` overlaps the period, **or** that have a task completed in the period.
-- **Carried over** = efforts whose `quarter` ended on or before the period's end and whose status is neither `done` nor `dropped`. Stale efforts therefore keep appearing until they are moved, closed or dropped.
+- **Efforts listed** under a quarterly goal = efforts whose goal's quarter overlaps the period, **or** that have a task completed in the period, **or** whose `closed` falls in it.
+- **Carried over** = efforts whose goal's quarter ended on or before the period's end and whose status is neither `done` nor `dropped`. Stale efforts therefore keep appearing until they are moved to a later goal, closed or dropped.
+- **Goals closed** = goals whose `closed` falls in the period; **needs closing** = `open` goals whose period ended on or before the period's end.
 
 ### 6.4 Retired commands
 
-**Retired / aliased:** `report-file [time]` → alias of `summary week --write` with no argument, or `summary --since <time> --write` with one. It prints the written file's path, as today, and is deprecated (removed after one release). Output moves from root `Weekly-Status-YYYY-WW.md` to `summaries/YYYY-Www.md`; the existing `Weekly-Status-*.md` files are moved by the migration (§9). `setup` → README. `000-Project-Index.md` is no longer generated and the user deletes it; `goal tree`, `graph` and `search` replace it.
+**Retired / aliased:** `report-file [time]` → alias of `summary week --write` with no argument, or `summary --since <time> --write` with one. It prints the written file's path, as today, and is deprecated (removed after one release). Output moves from root `Weekly-Status-YYYY-WW.md` to `summaries/YYYY-Www.md`; the existing `Weekly-Status-*.md` files are moved by the migration (§9). `setup` → README. `000-Project-Index.md` is no longer generated and the user deletes it; `goal list`, `graph` and `search` replace it.
 
 ## 7. Architecture
 
@@ -300,10 +340,10 @@ Maven project, Java 25, GraalVM native-image profile.
 |---|---|---|
 | `config` | Locate, parse and validate the config file. | `Config.load(args, env)` |
 | `taskwarrior` | The **only** code that runs `task`. JSON → `Task` records; writes via `add`/`modify`/`start`/`stop`/`done`; ensures UDAs. Applies `task.rc`/`task.data`. | `TaskStore.query(filter)`, `add(…)`, `modify(ref, changes)`, `start/stop/done(ref)` |
-| `notes` | Read and create notes under `data.location`: walk, frontmatter, wikilinks, type inference, built-in templates, managed sections, atomic writes. No Taskwarrior. | `KnowledgeBase.load()` → notes, `Zettels`, `Papers` |
+| `notes` | Read and create notes under `data.location`: walk, frontmatter, wikilinks, type inference, built-in templates, frontmatter updates, atomic writes. No Taskwarrior. | `KnowledgeBase.load()` → notes, `Zettels`, `Papers` |
 | `graph` | `KnowledgeGraph` builds the typed graph from the `KnowledgeBase` + `TaskStore` (one lazy read of the notes, keeping headers and link targets only, plus one task export): nodes, edges, link resolution, node ID input. `Graph` walks it breadth-first with the edge that reached each node; `Check` goes over its nodes and links and reports problems. | `Graph.walk(Query, warnings)` → lazy stream of `Reached`; `Check.problems(…)` |
 | `search` | Word and phrase search over the notes. | `Search.find(query, filters)` |
-| `planning` | Goals/efforts: ID allocation, validation, tree. | `Planning.newGoal(…)`, `newEffort(…)`, `tree(year)` |
+| `planning` | Goals/efforts: ID allocation, validation, status and `closed`, lists and subtrees. | `Planning.newGoal(…)`, `newEffort(…)`, `list(period)` |
 | `reports` | `summary`, `recent`, `context` as pure functions returning models. | `Summary.of(period)` → `SummaryModel` |
 | `cli` | Æsh commands, argument guard, completers, `Renderer` (human/JSON). Commands return models; only the renderer prints. | — |
 
@@ -321,7 +361,7 @@ Dependencies point downward: `cli → reports/planning/graph/search → notes/ta
 Æsh generates the shell script: `ztk --aesh-completion zsh|bash|fish`. For zsh it is an autoload file saved as `_ztk` on `fpath`. On every Tab the script calls `ztk --aesh-complete -- <words>`.
 
 - Æsh completes subcommands and options.
-- ztk completers compute argument values from Taskwarrior as configured for ztk: task IDs (`start`, `review`, `done`, `info`), `project:` and `+tag` attributes (`add`), project names (`list`, `week`). `graph` completes note names from file names alone (no parsing; a name in several folders is offered folder-qualified), pending task IDs and `project:` names; `--kind`, `--type`, `--edges` and `check --code` offer fixed lists, `--project` project names, with comma lists completed after the last comma (a repeated list option, such as `--kind note --kind t`, gets no completion: Æsh merges its values). Later phases add effort slugs and goal IDs the same way.
+- ztk completers compute argument values from Taskwarrior as configured for ztk: task IDs (`start`, `review`, `done`, `info`), `project:` and `+tag` attributes (`add`), project names (`list`, `week`). `graph` completes note names from file names alone (no parsing; a name in several folders is offered folder-qualified), pending task IDs and `project:` names; `--kind`, `--type`, `--edges` and `check --code` offer fixed lists, `--project` project names, with comma lists completed after the last comma (a repeated list option, such as `--kind note --kind t`, gets no completion: Æsh merges its values). Goal IDs (`goal info`/`set`, `--parent` offers yearly goals, `--goal` quarterly goals), effort slugs (`effort info`/`set`/`assign`, `add --effort`) and `--status` values (fixed per kind) are completed the same way.
 - Completers receive the invocation's context through a ztk completer invocation. A failure, such as a missing configuration, gives no candidates and no message.
 - Completed arguments disable Æsh's file fallback, so the shell does not offer file names next to the values. Commands without positional arguments still get it: Æsh offers no way to turn it off there.
 
@@ -333,7 +373,7 @@ The native binary keeps per-Tab latency low; the target is under 50 ms per call 
 
 - **Taskwarrior failures:** exit 4, include `task`'s stderr; no partial writes (validate first, write last).
 - **Unreadable note:** warning on stderr (or in the JSON `warnings` array, each with `path`, `message` and `hint`), note skipped; other notes still load. Frontmatter that is not valid YAML is read through the fallback without a warning or a `check` problem: ztk reads it correctly, and the migration (§9) quotes the values other tools would misread.
-- **Writes:** atomic (temp file in the same directory + rename). Re-read a file right before modifying it, since it may be open in nvim. Managed sections are replaced only between their markers; missing markers are appended at the end of the matching heading, or of the file if the heading is absent.
+- **Writes:** atomic (temp file in the same directory + rename). Re-read a file right before modifying it, since it may be open in nvim. Updates to an existing note change only its frontmatter; the body is never touched.
 - **Validation:** unknown effort/goal/parent, missing project, or a duplicate slug → exit 3 with the valid options listed.
 - **No silent creation:** referencing a non-existent effort never auto-creates it.
 
@@ -356,7 +396,7 @@ Repository `skills/` folder, installed with `ztk install-skills`:
 | Skill | Purpose |
 |---|---|
 | `ztk` | Everyday agent usage: `recent` at session start, `context`, writing `[[wikilinks]]` into notes with its own tools, `add` (prints the new task's note path)/`info` (a task's note path), `session add` at session end, `graph`/`search` for lookups, never run editor commands. Replaces `~/.claude/skills/ztk`. |
-| `ztk-planning` | Collaborative goal → effort → task flow: read `goal tree` + last quarter's `summary`; brainstorm one goal at a time with the user; create it with `goal new`, then write Why / What done looks like together; propose efforts one at a time, creating each only after agreement and writing its note; break an effort into tasks (`add … --effort`) only after its note is agreed. The agent never creates goals or efforts without the user's explicit agreement. |
+| `ztk-planning` | Collaborative goal → effort → task flow, as a grill-me-style interview: read `goal list` + last quarter's `summary`; for a yearly goal, start from what was agreed with the manager; question the user one goal at a time until the goal is clear; create it with `goal new` and write every section of its template from the discussion; propose efforts one at a time, creating each only after agreement and writing its note; break an effort into tasks (`add … --effort`, `effort assign`) only after its note is agreed. The agent never creates goals or efforts without the user's explicit agreement. |
 | `ztk-papers` | Reading flow: `paper new` files the PDF and note; the agent reads the PDF, writes the summary into the note, extracts atomic zettels (`new`) that link back to the paper, and links them from the task notes that apply them. |
 | `ztk-summary` | Expand `summary <period> --json` into a narrative for weekly/quarterly/yearly reviews, using only gathered facts, then save with `summary --write` or edit the written file. Replaces `weekly-summary`. |
 
@@ -364,7 +404,7 @@ Also shipped: an `AGENTS.md` template for `data.location` whose startup instruct
 
 ## 11. Testing
 
-- **Unit:** config parsing, frontmatter/wikilink parsing, type inference, managed-section rewriting, ID allocation, graph traversal, summary models. Uses fixture vaults under `src/test/resources`.
+- **Unit:** config parsing, frontmatter/wikilink parsing, type inference, frontmatter updates, ID allocation, graph traversal, summary models. Uses fixture vaults under `src/test/resources`.
 - **Integration:** against the real `task` binary with `task.rc`/`task.data` pointing to a temp directory. Never touches the user's data; tests fail if `TASKRC`/`TASKDATA` would resolve to the real files.
 - **Golden files:** JSON output of every read command. Shape changes require updating goldens and bumping `schema` if incompatible.
 - **CLI:** argument guard (`--help`, unknown flags have no side effects), exit codes, non-TTY editor refusal, and path-result commands printing a bare path on stdout in both TTY and non-TTY mode with human messages on stderr.

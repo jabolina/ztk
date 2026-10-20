@@ -39,6 +39,40 @@ _Avoid_: tag, index note, MOC
 A wikilink whose target matches no note.
 _Avoid_: dead link
 
+### Planning
+
+**Yearly goal**:
+An outcome to reach within one calendar year; a year has several, numbered in order: `2026-G1`, `2026-G2`. A number is never reused.
+_Avoid_: objective, OKR
+
+**Quarterly goal**:
+An achievable step toward one **Yearly goal**, reached within one calendar quarter; numbered in order within the quarter: `2026-Q4-G1`. A number is never reused.
+_Avoid_: milestone, key result
+
+**Effort**:
+A group of **Tasks** that together work toward one **Quarterly goal**, which it always has; its quarter is its goal's. Its tasks need not depend on each other and may span projects. Named by a slug unique across the knowledge base: `infinijepsen-demo`.
+_Avoid_: epic, initiative
+
+**Goal status**:
+Where a goal stands, set by the user: `open`, `reached`, `missed` (tried, not made) or `dropped` (no longer matters). An `open` goal whose period has ended **needs closing**.
+_Avoid_: state, progress
+
+**Effort status**:
+Where an effort stands, set by the user, never derived from its tasks: `planned`, `active`, `done` or `dropped`.
+_Avoid_: state, progress
+
+**Carried over**:
+An effort neither `done` nor `dropped` whose goal's quarter has ended; it moves on by pointing it at a goal of a later quarter, or by closing it.
+_Avoid_: stale, overdue
+
+**Material**:
+Files related to one goal, effort or task (drafts, PDFs, logs, thread dumps), kept in a folder of their own beside it; to ztk, its Markdown files are plain notes. Goals sit loose in `goals/<YYYY>/` and `goals/<YYYY>/Q<q>/`, efforts loose in `efforts/`; any other folder there is material.
+_Avoid_: attachments, assets
+
+**General work**:
+**Tasks** outside any **Effort**: day-to-day work such as bug fixes, customer cases and releases. Normal, never flagged. A small group of it is a note linking its tasks, not an **Effort**.
+_Avoid_: unplanned work, misc
+
 ### Sessions and summaries
 
 **Session**:
@@ -56,14 +90,14 @@ _Avoid_: weekly status, report file
 ### Graph
 
 **Node**:
-A task, note or project as one point of the graph.
+A task, note, project, goal or effort as one point of the graph.
 
 **Kind**:
-What a node is: a task, a note, a project, or a **Dangling link**'s target; the prefix of its node ID (`dangling:<target>` for the last). A note's **type** (zettel, paper, task note…) is a separate thing.
+What a node is: a task, a note, a project, a goal, an effort, or a **Dangling link**'s target; the prefix of its node ID (`dangling:<target>` for the last). A goal's or effort's own file is that goal or effort node, not a note node. A note's **type** (zettel, paper, task note…) is a separate thing.
 _Avoid_: entity, node type
 
 **Node ID**:
-The kind-prefixed name of a node, printed as `task:<uuid>`, `note:<path without .md>` or `project:<name>`; as input the prefix is optional for tasks (a number) and notes (a name).
+The kind-prefixed name of a node, printed as `task:<uuid>`, `note:<path without .md>`, `project:<name>`, `goal:<YYYY-Gn|YYYY-Qq-Gn>` or `effort:<slug>`; as input the prefix is optional for tasks (a number), notes and efforts (a name) and goals (their ID).
 _Avoid_: reference, handle
 
 **Ambiguous link**:
@@ -84,6 +118,8 @@ How much a **Problem** matters: an error means something is broken and fails `ch
 ## Relationships
 
 - A **Paper** yields zero or more **Zettels**, each linking back to it; a **Task note** links to the **Zettels** it applies
+- A **Yearly goal** has zero or more **Quarterly goals**, each with exactly one **Yearly goal**; a **Quarterly goal** has zero or more **Efforts**, each with exactly one **Quarterly goal**
+- A **Task** belongs to at most one **Effort**; without one it is **General work**
 - A **Note** contains zero or more **Wikilinks**
 - An open **Task** has a project and, when its `note` attribute is set, a **Task note** there; every **Task note** has its **Task** unless it is an **Orphan task note**
 - A **Wikilink** resolves to the **Note** of that name in the linking note's own folder if there is one, else to every **Note** of that name (an **Ambiguous link** when more than one); failing that, a target shaped as a task UUID (full or 8-hex short) resolves to that **Task**; otherwise it is a **Dangling link**

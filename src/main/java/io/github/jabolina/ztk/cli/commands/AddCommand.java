@@ -16,6 +16,7 @@ import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ArgumentGuard;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.cli.completers.AttributeCompleter;
+import io.github.jabolina.ztk.cli.completers.EffortCompleter;
 import io.github.jabolina.ztk.tasks.TaskNote;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -48,7 +49,8 @@ public class AddCommand implements Command<ZtkInvocation> {
          validator = ArgumentGuard.class, required = true, completer = AttributeCompleter.class, completeFallback = CompletionFallback.NONE)
    List<String> words;
 
-   @Option(description = "The effort the task joins, e.g., infinijepsen-demo; it must exist and be open")
+   @Option(description = "The effort the task joins, e.g., infinijepsen-demo; it must exist and be open",
+         completer = EffortCompleter.Open.class)
    String effort;
 
    @Override

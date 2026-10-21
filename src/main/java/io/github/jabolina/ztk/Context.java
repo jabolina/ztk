@@ -132,6 +132,14 @@ public final class Context {
    }
 
    /**
+    * @return every goal and effort of the knowledge base, read anew on each use.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public Plan plan() {
+      return new Plan(configuration(), Clock.systemDefaultZone());
+   }
+
+   /**
     * Reads the graph of the knowledge base: its notes, goals and efforts, and the tasks and projects of Taskwarrior.
     *
     * <p>
@@ -143,7 +151,7 @@ public final class Context {
     *                      {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails.
     */
    public KnowledgeGraph graph() {
-      return KnowledgeGraph.read(knowledgeBase(), store(), new Plan(configuration(), Clock.systemDefaultZone()));
+      return KnowledgeGraph.read(knowledgeBase(), store(), plan());
    }
 
    /**

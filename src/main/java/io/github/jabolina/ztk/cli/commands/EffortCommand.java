@@ -10,11 +10,15 @@ import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.option.Argument;
+import org.aesh.command.option.CompletionFallback;
 import org.aesh.command.option.Arguments;
 import org.aesh.command.option.Option;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
+import io.github.jabolina.ztk.cli.completers.EffortCompleter;
+import io.github.jabolina.ztk.cli.completers.GoalCompleter;
+import io.github.jabolina.ztk.cli.completers.TaskCompleter;
 import io.github.jabolina.ztk.cli.renderer.Table;
 import io.github.jabolina.ztk.planning.Effort;
 import io.github.jabolina.ztk.planning.EffortStatus;
@@ -59,14 +63,11 @@ public class EffortCommand implements Command<ZtkInvocation> {
    /**
     * Reads an effort status as typed on the command line.
     *
-    * @param label the status, e.g. {@code active}.
+    * @param label the status, e.g. {@code active}; one of the option's allowed values.
     * @return the status.
-    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no effort status has that label, listing the valid
-    *                      ones.
     */
    private static EffortStatus status(String label) {
-      return Labeled.parse(EffortStatus.class, label).orElseThrow(() -> ZtkException.usage(
-            "Unknown effort status '" + label + "'. Valid statuses: " + String.join(", ", Labeled.labels(EffortStatus.class)) + "."));
+      return Labeled.parse(EffortStatus.class, label).orElseThrow();
    }
 
    /**
@@ -104,13 +105,14 @@ public class EffortCommand implements Command<ZtkInvocation> {
          generateHelp = true)
    public static final class New implements Command<ZtkInvocation> {
 
-      @Argument(description = "The effort's slug, its file name and ID, e.g., infinijepsen-demo", required = true)
+      @Argument(description = "The effort's slug, its file name and ID, e.g., infinijepsen-demo", required = true, completeFallback = CompletionFallback.NONE)
       String slug;
 
       @Option(description = "The effort's title", required = true)
       String title;
 
-      @Option(description = "The quarterly goal the effort moves forward, e.g., 2026-Q4-G1", required = true)
+      @Option(description = "The quarterly goal the effort moves forward, e.g., 2026-Q4-G1", required = true,
+            completer = GoalCompleter.Quarterly.class)
       String goal;
 
       @Override
@@ -144,16 +146,19 @@ public class EffortCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "set", description = "Change an effort's status, title or goal", generateHelp = true)
    public static final class Set implements Command<ZtkInvocation> {
 
-      @Argument(description = "The effort's slug, e.g., infinijepsen-demo", required = true)
+      @Argument(description = "The effort's slug, e.g., infinijepsen-demo", required = true, completer = EffortCompleter.class,
+            completeFallback = CompletionFallback.NONE)
       String effort;
 
-      @Option(description = "The effort's new status: planned, active, done or dropped")
+      // The labels of EffortStatus, which a completion test keeps in step.
+      @Option(description = "The effort's new status", allowedValues = { "planned", "active", "done", "dropped" })
       String status;
 
       @Option(description = "The effort's new title; its file name stays")
       String title;
 
-      @Option(description = "The effort's new quarterly goal, e.g., 2027-Q1-G1; a later quarter carries it over")
+      @Option(description = "The effort's new quarterly goal, e.g., 2027-Q1-G1; a later quarter carries it over",
+            completer = GoalCompleter.Quarterly.class)
       String goal;
 
       @Override
@@ -195,13 +200,14 @@ public class EffortCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "list", description = "List efforts with their tasks counted", generateHelp = true)
    public static final class ListEfforts implements Command<ZtkInvocation> {
 
-      @Argument(description = "The quarter or year of the efforts' goals, e.g., 2026-Q4 or 2026; open efforts of any quarter when not given")
+      @Argument(description = "The quarter or year of the efforts' goals, e.g., 2026-Q4 or 2026; open efforts of any quarter when not given", completeFallback = CompletionFallback.NONE)
       String period;
 
-      @Option(description = "Only list efforts with this status: planned, active, done or dropped")
+      // The labels of EffortStatus, which a completion test keeps in step.
+      @Option(description = "Only list efforts with this status", allowedValues = { "planned", "active", "done", "dropped" })
       String status;
 
-      @Option(description = "Only list the efforts of this quarterly goal, e.g., 2026-Q4-G1")
+      @Option(description = "Only list the efforts of this quarterly goal, e.g., 2026-Q4-G1", completer = GoalCompleter.Quarterly.class)
       String goal;
 
       @Override
@@ -238,7 +244,8 @@ public class EffortCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "info", description = "Show an effort with its goals and tasks", generateHelp = true)
    public static final class Info implements Command<ZtkInvocation> {
 
-      @Argument(description = "The effort's slug, e.g., infinijepsen-demo", required = true)
+      @Argument(description = "The effort's slug, e.g., infinijepsen-demo", required = true, completer = EffortCompleter.class,
+            completeFallback = CompletionFallback.NONE)
       String effort;
 
       @Override
@@ -313,10 +320,11 @@ public class EffortCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "assign", description = "Join tasks to an effort", generateHelp = true)
    public static final class Assign implements Command<ZtkInvocation> {
 
-      @Argument(description = "The effort's slug, e.g., infinijepsen-demo", required = true)
+      @Argument(description = "The effort's slug, e.g., infinijepsen-demo", required = true,
+            completer = EffortCompleter.Open.class, completeFallback = CompletionFallback.NONE)
       String effort;
 
-      @Arguments(description = "The tasks, by ID or UUID", required = true)
+      @Arguments(description = "The tasks, by ID or UUID", required = true, completer = TaskCompleter.class)
       List<String> tasks;
 
       @Override
@@ -341,7 +349,8 @@ public class EffortCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "unassign", description = "Take tasks out of their effort", generateHelp = true)
    public static final class Unassign implements Command<ZtkInvocation> {
 
-      @Arguments(description = "The tasks, by ID or UUID", required = true)
+      @Arguments(description = "The tasks, by ID or UUID", required = true, completer = TaskCompleter.class,
+            completeFallback = CompletionFallback.NONE)
       List<String> tasks;
 
       @Override

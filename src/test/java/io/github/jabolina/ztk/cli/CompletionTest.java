@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Properties;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -133,6 +134,123 @@ class CompletionTest {
       assertThat(result.out().lines()).containsExactly("note,task");
    }
 
+   @ParameterizedTest
+   @ValueSource(strings = { "goal set 2026-G1 --status", "goal list --status" })
+   void goalStatusOffersTheGoalStatuses(String words) {
+      Result result = complete(words(words, ""));
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("open", "reached", "missed", "dropped");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "effort set demo --status", "effort list --status" })
+   void effortStatusOffersTheEffortStatuses(String words) {
+      Result result = complete(words(words, ""));
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("planned", "active", "done", "dropped");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "set", "info" })
+   void goalCommandsOfferEveryGoalId(String command) throws IOException {
+      goal("goals/2025/2025-G1-old.md", "reached", null);
+      goal("goals/2026/2026-G1-correct.md", "open", null);
+      goal("goals/2026/Q4/2026-Q4-G1-bugs.md", "open", "2026-G1");
+      // Material under a year's folder is no goal.
+      note("goals/2026/data/2026-G9-notes.md");
+
+      Result result = complete("goal", command, "");
+
+      assertThat(result.exitCode()).isZero();
+      // Closed goals too: they can still be shown and reopened.
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("2025-G1", "2026-G1", "2026-Q4-G1");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "goal new 2026-Q4 --title x --parent", "goal set 2026-Q4-G1 --parent" })
+   void parentOffersOpenYearlyGoals(String words) throws IOException {
+      goal("goals/2025/2025-G1-old.md", "reached", null);
+      goal("goals/2026/2026-G1-correct.md", "open", null);
+      goal("goals/2026/2026-G2-faster.md", "open", null);
+      goal("goals/2026/Q4/2026-Q4-G1-bugs.md", "open", "2026-G1");
+
+      Result result = complete(words(words, "2026"));
+
+      assertThat(result.exitCode()).isZero();
+      // Neither quarterly goals nor closed yearly goals can be a parent.
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("2026-G1", "2026-G2");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "effort new demo --title x --goal", "effort set demo --goal", "effort list --goal" })
+   void goalOptionOffersOpenQuarterlyGoals(String words) throws IOException {
+      goal("goals/2026/2026-G1-correct.md", "open", null);
+      goal("goals/2026/Q3/2026-Q3-G1-tests.md", "missed", "2026-G1");
+      goal("goals/2026/Q4/2026-Q4-G1-bugs.md", "open", "2026-G1");
+      goal("goals/2026/Q4/2026-Q4-G2-docs.md", "open", "2026-G1");
+
+      Result result = complete(words(words, ""));
+
+      assertThat(result.exitCode()).isZero();
+      // Efforts move quarterly goals forward, and only open ones take new work.
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("2026-Q4-G1", "2026-Q4-G2");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "set", "info" })
+   void effortCommandsOfferEveryEffort(String command) throws IOException {
+      effort("efforts/demo.md", "active");
+      effort("efforts/spec.md", "planned");
+      effort("efforts/old-bugs.md", "done");
+      // Material under the efforts folder is no effort.
+      note("efforts/demo/notes.md");
+
+      Result result = complete("effort", command, "");
+
+      assertThat(result.exitCode()).isZero();
+      // Closed efforts too: they can still be shown and reopened.
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("demo", "spec", "old-bugs");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "effort assign", "add fix project:Alpha --effort" })
+   void joiningAnEffortOffersOpenEfforts(String words) throws IOException {
+      effort("efforts/demo.md", "active");
+      effort("efforts/spec.md", "planned");
+      effort("efforts/old-bugs.md", "done");
+      effort("efforts/dropped-idea.md", "dropped");
+
+      Result result = complete(words(words, ""));
+
+      assertThat(result.exitCode()).isZero();
+      // A closed effort takes no new pending task.
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("demo", "spec");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "effort assign demo", "effort unassign" })
+   void assignAndUnassignOfferPendingTaskIds(String words) throws IOException {
+      effort("efforts/demo.md", "active");
+      taskwarrior.task("add", "first", "project:Alpha");
+      taskwarrior.task("add", "second", "project:Alpha");
+
+      Result result = complete(words(words, ""));
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out().lines()).containsExactly("1", "2");
+   }
+
+   @Test
+   void withoutGoalsGoalCompletionStaysQuiet() {
+      Result result = complete("goal", "info", "");
+
+      // Without goals Æsh offers the command's options instead, so stdout is not checked.
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.err()).isEmpty();
+   }
+
    @Test
    void withoutConfigurationCompletionStaysQuiet() {
       // No ZTKRC and an empty HOME: no configuration can be found.
@@ -154,9 +272,68 @@ class CompletionTest {
     * @throws IOException when the note cannot be written.
     */
    private void note(String relative) throws IOException {
+      note(relative, "# " + Path.of(relative).getFileName() + "\n");
+   }
+
+   /**
+    * Writes a note with the given content into the fixture's knowledge base.
+    *
+    * @param relative the note's path relative to the knowledge base, e.g. {@code Alpha/fix-bug.md}.
+    * @param content the whole note.
+    * @throws IOException when the note cannot be written.
+    */
+   private void note(String relative, String content) throws IOException {
       Path file = taskwarrior.dataLocation().resolve(relative);
       Files.createDirectories(file.getParent());
-      Files.writeString(file, "# " + file.getFileName() + "\n");
+      Files.writeString(file, content);
+   }
+
+   /**
+    * Writes a goal note, as {@code goal new} and {@code goal set} leave it.
+    *
+    * @param relative the note's path relative to the knowledge base, e.g. {@code goals/2026/2026-G1-correct.md}.
+    * @param status the goal's status, e.g. {@code open}.
+    * @param parent the yearly goal of a quarterly goal; {@code null} for a yearly goal.
+    * @throws IOException when the note cannot be written.
+    */
+   private void goal(String relative, String status, String parent) throws IOException {
+      note(relative, """
+            ---
+            title: A goal
+            status: %s
+            %sdate: 2026-01-05T09:00:00+01:00
+            ---
+            """.formatted(status, parent == null ? "" : "parent: " + parent + "\n"));
+   }
+
+   /**
+    * Writes an effort note, as {@code effort new} and {@code effort set} leave it.
+    *
+    * @param relative the note's path relative to the knowledge base, e.g. {@code efforts/demo.md}.
+    * @param status the effort's status, e.g. {@code active}.
+    * @throws IOException when the note cannot be written.
+    */
+   private void effort(String relative, String status) throws IOException {
+      note(relative, """
+            ---
+            title: An effort
+            status: %s
+            goal: 2026-Q4-G1
+            date: 2026-10-05T09:00:00+01:00
+            ---
+            """.formatted(status));
+   }
+
+   /**
+    * @param words the words before the one being completed, separated by spaces, e.g. {@code goal list --status}.
+    * @param last the word being completed, e.g. {@code 2026}; may be empty.
+    * @return every word, as {@link #complete(String...)} takes them.
+    */
+   private static String[] words(String words, String last) {
+      String[] split = words.split(" ");
+      String[] all = Arrays.copyOf(split, split.length + 1);
+      all[split.length] = last;
+      return all;
    }
 
    /**

@@ -8,9 +8,9 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-21, Task 3 done)
+## Where we left off (2026-10-21, Phase 3 done)
 
-The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. Task 1 (Goals) and Task 2 (Efforts and their tasks) are done: `goal new|set|list|info`, `effort new|set|list|info|assign|unassign`, `add --effort`, `effort` in the common task shape, and goal and effort notes read as `goal:`/`effort:` nodes in `search`. Task 3 (Graph and check) is done: `goal`/`effort` graph nodes (with `status`) and edges, goal and effort IDs as start nodes, and the nine planning `check` codes. Next: Task 4 (completion and native smoke test).
+The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. All four tasks are done: goals (`goal new|set|list|info`), efforts and their tasks (`effort new|set|list|info|assign|unassign`, `add --effort`), graph and check (`goal`/`effort` nodes and edges, the nine planning codes), and completion with the native smoke test. Next: the end-of-phase review the user wants (list below), then Phase 4.
 
 How `planning` is put together (agreed before Task 2; keep it this way):
 
@@ -27,8 +27,16 @@ How Task 3 joined planning to the graph:
 
 What Task 4 builds on: `--kind`/`--edges`/`check --code` already list the new values as fixed lists; `graph` start nodes accept `goal:<id>`, a bare goal ID, `effort:<slug>` and an effort's bare slug.
 - Taskwarrior: `effort:x` filters by prefix (use `effort.is:`); `modify effort:` clears it; abbreviations down to `ef:` set it.
-- Left as small duplicates for the end-of-phase review: the status parsers in `GoalCommand`/`EffortCommand`, and `checked(slug)` in `Goals`/`Efforts` (different hints).
+- Left as small duplicates for the end-of-phase review: `checked(slug)` in `Goals`/`Efforts` (different hints). The status parsers in `GoalCommand`/`EffortCommand` shrank to one line each once Æsh validated `--status` (Task 4).
+How Task 4 completes the plan:
+
+- `cli.completers.GoalCompleter` (every goal; nested `Yearly`/`Quarterly`: open goals of that level) and `EffortCompleter` (every effort; nested `Open`) read through `Context.plan()`. Closed items are offered where they can still be shown or reopened, only open ones where new work goes under them.
+- `--status` uses `allowedValues`, so Æsh rejects unknown statuses with the valid ones listed; the commands' own status errors are gone. A completion test keeps the lists in step with the enums.
+- Æsh prints its file sentinel from the command's positional argument alone, even while completing an option's value (`docs/personal.md`, item 4); every planning command sets `completeFallback = NONE` on it.
+- Native smoke test (2026-10-21): completion of goals and efforts 6 ms, `goal list` 6 ms, `effort info` 15 ms, `graph` from a goal 44 ms.
+
 - For the end-of-phase review (raised at the start of Task 3): `notes` and `planning` each know their own items, yet `graph` must know every kind (node variants, edges, check rules), so planning knowledge leaks into it. Task 3 takes the direct route (`graph` depends on `planning`: `Plan`, `Node.OfGoal`/`OfEffort`, planning rules in `Check`); assess whether modules should contribute their nodes, edges and problems to the graph through a seam instead.
+- For the end-of-phase review (raised after Task 4): the native image is built without GraalVM's suggested optimisations (e.g. `-O3`, `-march=native`, profile-guided optimisation); every target is met with a wide margin, so weigh build time and portability against the gain.
 
 **Working agreement:** TDD; Claude writes tests and snippets, the user writes production code and runs the tests. Tasks are large: inside one, walk in larger strides (several behaviors per step when they are mechanical). Commit once a whole task is done. Verify Æsh/Taskwarrior behavior in the scratchpad, never against real data. Real notes in `~/cerebro` are only read, never written; nothing about this work goes there.
 

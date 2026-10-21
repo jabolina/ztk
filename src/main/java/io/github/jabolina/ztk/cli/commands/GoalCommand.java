@@ -9,10 +9,12 @@ import org.aesh.command.Command;
 import org.aesh.command.CommandDefinition;
 import org.aesh.command.CommandResult;
 import org.aesh.command.option.Argument;
+import org.aesh.command.option.CompletionFallback;
 import org.aesh.command.option.Option;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
+import io.github.jabolina.ztk.cli.completers.GoalCompleter;
 import io.github.jabolina.ztk.cli.renderer.Table;
 import io.github.jabolina.ztk.planning.Efforts;
 import io.github.jabolina.ztk.planning.GoalStatus;
@@ -49,13 +51,11 @@ public class GoalCommand implements Command<ZtkInvocation> {
    /**
     * Reads a goal status as typed on the command line.
     *
-    * @param label the status, e.g. {@code reached}.
+    * @param label the status, e.g. {@code reached}; one of the option's allowed values.
     * @return the status.
-    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no goal status has that label, listing the valid ones.
     */
    private static GoalStatus status(String label) {
-      return Labeled.parse(GoalStatus.class, label).orElseThrow(() -> ZtkException.usage(
-            "Unknown goal status '" + label + "'. Valid statuses: " + String.join(", ", Labeled.labels(GoalStatus.class)) + "."));
+      return Labeled.parse(GoalStatus.class, label).orElseThrow();
    }
 
    /**
@@ -80,13 +80,13 @@ public class GoalCommand implements Command<ZtkInvocation> {
    public static final class New implements Command<ZtkInvocation> {
 
       @Argument(description = "The year of a yearly goal, e.g., 2026, or the quarter of a quarterly goal, e.g., 2026-Q4",
-            required = true)
+            required = true, completeFallback = CompletionFallback.NONE)
       String period;
 
       @Option(description = "The goal's title", required = true)
       String title;
 
-      @Option(description = "The yearly goal a quarterly goal moves forward, e.g., 2026-G1")
+      @Option(description = "The yearly goal a quarterly goal moves forward, e.g., 2026-G1", completer = GoalCompleter.Yearly.class)
       String parent;
 
       @Option(description = "The end of the file name, e.g., provably-correct; derived from the title when not given")
@@ -124,16 +124,17 @@ public class GoalCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "set", description = "Change a goal's status, title or parent", generateHelp = true)
    public static final class Set implements Command<ZtkInvocation> {
 
-      @Argument(description = "The goal, e.g., 2026-G1 or 2026-Q4-G1", required = true)
+      @Argument(description = "The goal, e.g., 2026-G1 or 2026-Q4-G1", required = true, completer = GoalCompleter.class, completeFallback = CompletionFallback.NONE)
       String goal;
 
-      @Option(description = "The goal's new status: open, reached, missed or dropped")
+      // The labels of GoalStatus, which a completion test keeps in step.
+      @Option(description = "The goal's new status", allowedValues = { "open", "reached", "missed", "dropped" })
       String status;
 
       @Option(description = "The goal's new title; its file name stays")
       String title;
 
-      @Option(description = "The new yearly goal of a quarterly goal, e.g., 2026-G2")
+      @Option(description = "The new yearly goal of a quarterly goal, e.g., 2026-G2", completer = GoalCompleter.Yearly.class)
       String parent;
 
       @Override
@@ -174,10 +175,11 @@ public class GoalCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "list", description = "List the goals of a year or quarter", generateHelp = true)
    public static final class ListGoals implements Command<ZtkInvocation> {
 
-      @Argument(description = "The year or quarter, e.g., 2026 or 2026-Q4; the current year when not given")
+      @Argument(description = "The year or quarter, e.g., 2026 or 2026-Q4; the current year when not given", completeFallback = CompletionFallback.NONE)
       String period;
 
-      @Option(description = "Only list goals with this status: open, reached, missed or dropped")
+      // The labels of GoalStatus, which a completion test keeps in step.
+      @Option(description = "Only list goals with this status", allowedValues = { "open", "reached", "missed", "dropped" })
       String status;
 
       @Override
@@ -215,7 +217,7 @@ public class GoalCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "info", description = "Show a goal with the goals that move it forward", generateHelp = true)
    public static final class Info implements Command<ZtkInvocation> {
 
-      @Argument(description = "The goal, e.g., 2026-G1 or 2026-Q4-G1", required = true)
+      @Argument(description = "The goal, e.g., 2026-G1 or 2026-Q4-G1", required = true, completer = GoalCompleter.class, completeFallback = CompletionFallback.NONE)
       String goal;
 
       @Override

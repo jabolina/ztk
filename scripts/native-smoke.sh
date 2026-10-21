@@ -59,17 +59,43 @@ echo "+ ztk search / graph / check"
 (( $("$BIN" graph note-1 | jq '.nodes | length') > 1 )) || fail "graph found no neighbors"
 "$BIN" check >/dev/null || fail "check reported errors in a knowledge base without any"
 
+# A plan for this year and quarter: the goal templates are packed into the native image, and new goals are numbered.
+YEAR=$(date +%Y)
+QUARTER="$YEAR-Q$(( ($(date +%-m) - 1) / 3 + 1 ))"
+echo "+ ztk goal new / effort new / add --effort / effort assign"
+YEARLY=$("$BIN" goal new "$YEAR" --title "Smoke yearly goal" | jq -r .path)
+[[ -f "$YEARLY" && $(basename "$YEARLY") == "$YEAR-G1-"* ]] || fail "goal new did not report the yearly goal: $YEARLY"
+QUARTERLY=$("$BIN" goal new "$QUARTER" --title "Smoke quarterly goal" --parent "$YEAR-G1" | jq -r .path)
+[[ -f "$QUARTERLY" && $(basename "$QUARTERLY") == "$QUARTER-G1-"* ]] || fail "goal new did not report the quarterly goal: $QUARTERLY"
+EFFORT=$("$BIN" effort new smoke-effort --title "Smoke effort" --goal "$QUARTER-G1" | jq -r .path)
+[[ -f "$EFFORT" ]] || fail "effort new did not report the effort: $EFFORT"
+check "$BIN" effort set smoke-effort --status active
+check "$BIN" add "effort task" project:Smoke --effort smoke-effort
+check "$BIN" effort assign smoke-effort 2
+echo "+ ztk goal list / effort info / graph / check"
+[[ $("$BIN" goal list | jq --arg id "goal:$QUARTER-G1" '.goals[] | select(.id == $id) | .efforts') == 1 ]] \
+   || fail "goal list did not count the quarterly goal's effort"
+(( $("$BIN" effort info smoke-effort | jq '.tasks.pending | length') == 2 )) || fail "effort info did not list both tasks"
+"$BIN" graph "$YEAR-G1" | jq -e '.nodes[] | select(.id == "effort:smoke-effort")' >/dev/null \
+   || fail "graph did not reach the effort from the yearly goal"
+"$BIN" check >/dev/null || fail "check reported errors in a plan without any"
+
 # Completion: the completers are created by Æsh and must reach Taskwarrior in the native image too.
 echo "+ ztk --aesh-complete"
 # Æsh always adds its file sentinel for commands without a positional argument, the root included.
 [[ $("$BIN" --aesh-complete -- st | grep -v '^__aesh_' | cut -f1 | tr '\n' ' ') == "start stop " ]] \
    || fail "subcommands not completed"
-[[ $("$BIN" --aesh-complete -- done "" | tr '\n' ' ') == "1 2 " ]] || fail "task IDs not completed"
+[[ $("$BIN" --aesh-complete -- done "" | tr '\n' ' ') == "1 2 3 " ]] || fail "task IDs not completed"
 [[ $("$BIN" --aesh-complete -- add x project:Sm) == "project:Smoke" ]] || fail "project attribute not completed"
 [[ $("$BIN" --aesh-complete -- add x +we) == "+week" ]] || fail "tag not completed"
 [[ $("$BIN" --aesh-complete -- list Sm) == "Smoke" ]] || fail "project name not completed"
 [[ $("$BIN" --aesh-complete -- graph note-100 | tr '\n' ' ') == "note-100 note-1000 " ]] || fail "note names not completed"
 [[ $("$BIN" --aesh-complete -- graph note-1 --kind note,t) == "note,task" ]] || fail "comma list not completed as a whole word"
+[[ $("$BIN" --aesh-complete -- goal list --status "" | tr '\n' ' ') == "dropped missed open reached " ]] \
+   || fail "goal statuses not completed"
+[[ $("$BIN" --aesh-complete -- goal new "$QUARTER" --title x --parent "") == "$YEAR-G1" ]] || fail "yearly goals not completed"
+[[ $("$BIN" --aesh-complete -- effort new x --title x --goal "") == "$QUARTER-G1" ]] || fail "quarterly goals not completed"
+[[ $("$BIN" --aesh-complete -- add x project:Smoke --effort "") == "smoke-effort" ]] || fail "open efforts not completed"
 "$BIN" --aesh-completion zsh | grep -q -- "--aesh-complete" || fail "no zsh completion script"
 
 check "$BIN" done 1
@@ -87,8 +113,18 @@ per_run() {
 SUBCOMMANDS=$(per_run 20 "$BIN" --aesh-complete -- st)
 IDS=$(per_run 20 "$BIN" --aesh-complete -- done "")
 NODES=$(per_run 20 "$BIN" --aesh-complete -- graph "")
-echo "completion: ${SUBCOMMANDS} ms/call for subcommands, ${IDS} ms/call for task IDs, ${NODES} ms/call for graph nodes"
-(( SUBCOMMANDS <= 50 && IDS <= 50 && NODES <= 50 )) || fail "completion slower than 50 ms per call"
+GOALS=$(per_run 20 "$BIN" --aesh-complete -- effort new x --title x --goal "")
+EFFORTS=$(per_run 20 "$BIN" --aesh-complete -- add x project:Smoke --effort "")
+echo "completion: ${SUBCOMMANDS} ms/call for subcommands, ${IDS} ms/call for task IDs, ${NODES} ms/call for graph nodes," \
+   "${GOALS} ms/call for goals, ${EFFORTS} ms/call for efforts"
+(( SUBCOMMANDS <= 50 && IDS <= 50 && NODES <= 50 && GOALS <= 50 && EFFORTS <= 50 )) || fail "completion slower than 50 ms per call"
+
+# The plan commands read goals, efforts and their tasks; graph from a goal also reads the 1,000 notes.
+GOAL_LIST=$(per_run 5 "$BIN" goal list)
+EFFORT_INFO=$(per_run 5 "$BIN" effort info smoke-effort)
+GOAL_GRAPH=$(per_run 5 "$BIN" graph "$YEAR-G1")
+echo "plan: ${GOAL_LIST} ms for goal list, ${EFFORT_INFO} ms for effort info, ${GOAL_GRAPH} ms for graph from a goal"
+(( GOAL_LIST <= 300 && EFFORT_INFO <= 300 && GOAL_GRAPH <= 300 )) || fail "goal list, effort info or graph slower than 300 ms"
 
 # search and graph read every note, so they must stay quick on a knowledge base of 1,000 notes.
 SEARCH=$(per_run 5 "$BIN" search lamport clocks)

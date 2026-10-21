@@ -33,6 +33,9 @@ public final class Levels implements PlanningNotes {
    // An effort directly in the efforts folder; the file name is its slug, e.g. infinijepsen-demo.md.
    private static final Pattern EFFORT = Pattern.compile("([^/]+)\\.md");
 
+   // A note directly in a year's or a quarter's folder, e.g. 2026/notes.md or 2026/Q4/notes.md: a goal, or meant to be.
+   private static final Pattern LEVEL = Pattern.compile("\\d{4}(?:/Q[1-4])?/[^/]+\\.md");
+
    private final Configuration configuration;
 
    /**
@@ -77,6 +80,17 @@ public final class Levels implements PlanningNotes {
       }
       Matcher quarterly = QUARTERLY.matcher(path);
       return quarterly.matches() ? Optional.of(quarterly.group(3)) : Optional.empty();
+   }
+
+   /**
+    * Tells whether a file of the goals folder sits where goals do.
+    *
+    * @param relative the file's path relative to the goals folder, e.g. {@code 2026/notes.md}.
+    * @return whether it is a note directly in a year's or a quarter's folder, named after a goal ID or not; material
+    *         sits in subfolders, and is not.
+    */
+   static boolean level(Path relative) {
+      return LEVEL.matcher(relative.toString()).matches();
    }
 
    /**

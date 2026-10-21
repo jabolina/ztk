@@ -492,7 +492,7 @@ class GraphCommandTest {
 
       assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.USAGE.exitCode());
       assertThat(result.out()).isEmpty();
-      assertThat(result.err()).contains("'tasks'").contains("note, task, project, dangling");
+      assertThat(result.err()).contains("'tasks'").contains("note, task, project, goal, effort, dangling");
    }
 
    @Test
@@ -561,6 +561,179 @@ class GraphCommandTest {
 
       assertThat(result.exitCode()).isZero();
       assertThat(result.err()).contains("nearest 1 nodes").contains("--limit");
+   }
+
+   @Test
+   void aTaskLeadsToItsEffortThenToTheEffortsOtherTasksAndItsGoal() throws IOException {
+      Path effort = plan();
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Fix bug", "project:Alpha", "effort:infinijepsen-demo");
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Write docs", "project:Beta", "effort:infinijepsen-demo");
+      String fixBug = taskwarrior.task("_get", "1.uuid");
+      String writeDocs = taskwarrior.task("_get", "2.uuid");
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "graph", "task:1");
+
+      // Not hubs: through the effort, the other task and the goal are two edges away; the yearly goal is three.
+      assertThat(ids(result)).containsExactlyInAnyOrder("task:" + fixBug, "project:Alpha", "effort:infinijepsen-demo",
+            "task:" + writeDocs, "goal:2026-Q4-G1");
+      JsonNode nodes = JSON.readTree(result.out()).path("nodes");
+
+      JsonNode reached = node(nodes, "effort:infinijepsen-demo");
+      assertThat(reached.path("kind").asString()).isEqualTo("effort");
+      // Its own note is the effort, not a note node: no note type.
+      assertThat(reached.has("type")).isFalse();
+      assertThat(reached.path("title").asString()).isEqualTo("InfiniJepsen demo");
+      assertThat(reached.path("path").asString()).isEqualTo(effort.toString());
+      assertThat(reached.path("status").asString()).isEqualTo("active");
+      assertThat(reached.path("depth").asInt()).isEqualTo(1);
+      assertThat(reached.path("via").path("from").asString()).isEqualTo("task:" + fixBug);
+      assertThat(reached.path("via").path("edge").asString()).isEqualTo("effort");
+      // The task holds the edge, pointing to its effort.
+      assertThat(reached.path("via").path("direction").asString()).isEqualTo("out");
+
+      JsonNode other = node(nodes, "task:" + writeDocs);
+      assertThat(other.path("depth").asInt()).isEqualTo(2);
+      assertThat(other.path("via").path("from").asString()).isEqualTo("effort:infinijepsen-demo");
+      assertThat(other.path("via").path("edge").asString()).isEqualTo("effort");
+      assertThat(other.path("via").path("direction").asString()).isEqualTo("in");
+
+      JsonNode goal = node(nodes, "goal:2026-Q4-G1");
+      assertThat(goal.path("kind").asString()).isEqualTo("goal");
+      assertThat(goal.path("title").asString()).isEqualTo("Fix the bugs");
+      assertThat(goal.path("status").asString()).isEqualTo("open");
+      assertThat(goal.path("depth").asInt()).isEqualTo(2);
+      assertThat(goal.path("via").path("from").asString()).isEqualTo("effort:infinijepsen-demo");
+      assertThat(goal.path("via").path("edge").asString()).isEqualTo("goal");
+      // The effort holds the edge, pointing to its goal.
+      assertThat(goal.path("via").path("direction").asString()).isEqualTo("out");
+   }
+
+   @Test
+   void aGoalLeadsToItsParentAndToTheGoalsAndEffortsUnderIt() throws IOException {
+      plan();
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "graph", "goal:2026-Q4-G1", "--depth", "1");
+
+      assertThat(ids(result)).containsExactlyInAnyOrder("goal:2026-Q4-G1", "goal:2026-G1",
+            "effort:infinijepsen-demo");
+      JsonNode nodes = JSON.readTree(result.out()).path("nodes");
+
+      JsonNode parent = node(nodes, "goal:2026-G1");
+      assertThat(parent.path("via").path("edge").asString()).isEqualTo("goal");
+      assertThat(parent.path("via").path("direction").asString()).isEqualTo("out");
+
+      JsonNode effort = node(nodes, "effort:infinijepsen-demo");
+      assertThat(effort.path("via").path("edge").asString()).isEqualTo("goal");
+      // The effort holds the edge, pointing to this goal.
+      assertThat(effort.path("via").path("direction").asString()).isEqualTo("in");
+   }
+
+   @Test
+   void goalsAndEffortsAreFoundByTheirIdsByABareGoalIdAndByAnEffortsName() throws IOException {
+      plan();
+
+      assertThat(ids(CliHarness.run(taskwarrior.environment(), false, "graph", "2026-Q4-G1", "--depth", "0")))
+            .containsExactly("goal:2026-Q4-G1");
+      assertThat(ids(CliHarness.run(taskwarrior.environment(), false, "graph", "effort:infinijepsen-demo",
+            "--depth", "0"))).containsExactly("effort:infinijepsen-demo");
+      // Its slug is its note's name, as a wikilink names it.
+      assertThat(ids(CliHarness.run(taskwarrior.environment(), false, "graph", "infinijepsen-demo", "--depth", "0")))
+            .containsExactly("effort:infinijepsen-demo");
+
+      Result unknown = CliHarness.run(taskwarrior.environment(), false, "graph", "goal:2026-Q4-G9");
+
+      assertThat(unknown.exitCode()).isEqualTo(ZtkException.Kind.NOT_FOUND.exitCode());
+      assertThat(unknown.err()).contains("goal:2026-Q4-G9").contains("ztk goal list");
+   }
+
+   @Test
+   void aWikilinkToAGoalOrEffortFileLeadsToTheGoalOrEffort() throws IOException {
+      plan();
+      note("zettel/consensus.md", "Driven by [[infinijepsen-demo]] for [[2026-Q4-G1-fix-the-bugs]].\n");
+
+      Result fromNote = CliHarness.run(taskwarrior.environment(), false, "graph", "note:zettel/consensus",
+            "--depth", "1");
+
+      assertThat(ids(fromNote)).containsExactlyInAnyOrder("note:zettel/consensus", "effort:infinijepsen-demo",
+            "goal:2026-Q4-G1");
+      JsonNode effort = node(JSON.readTree(fromNote.out()).path("nodes"), "effort:infinijepsen-demo");
+      assertThat(effort.path("kind").asString()).isEqualTo("effort");
+      assertThat(effort.path("via").path("edge").asString()).isEqualTo("link");
+      assertThat(effort.path("via").path("direction").asString()).isEqualTo("out");
+
+      // And back, from the effort.
+      Result fromEffort = CliHarness.run(taskwarrior.environment(), false, "graph", "effort:infinijepsen-demo",
+            "--depth", "1", "--edges", "link");
+
+      assertThat(ids(fromEffort)).containsExactly("effort:infinijepsen-demo", "note:zettel/consensus");
+   }
+
+   @Test
+   void kindAndEdgesTakeGoalsAndEfforts() throws IOException {
+      plan();
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Fix bug", "project:Alpha", "effort:infinijepsen-demo");
+      String fixBug = taskwarrior.task("_get", "1.uuid");
+
+      // The project and the goals are left out, and the walk does not pass through them.
+      assertThat(ids(CliHarness.run(taskwarrior.environment(), false, "graph", "task:1", "--depth", "3",
+            "--kind", "task,effort"))).containsExactly("task:" + fixBug, "effort:infinijepsen-demo");
+
+      // Up the goal edges only: the task is reached by an effort edge.
+      assertThat(ids(CliHarness.run(taskwarrior.environment(), false, "graph", "effort:infinijepsen-demo",
+            "--edges", "goal"))).containsExactly("effort:infinijepsen-demo", "goal:2026-Q4-G1", "goal:2026-G1");
+   }
+
+   @Test
+   void anEffortOrGoalNamingNothingLeadsNowhere() throws IOException {
+      // Its quarterly goal does not exist.
+      note("efforts/orphan.md", """
+            ---
+            title: Orphan
+            status: active
+            goal: 2026-Q4-G9
+            ---
+            """);
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Fix bug", "project:Alpha", "effort:ghost");
+      String fixBug = taskwarrior.task("_get", "1.uuid");
+
+      // Neither an edge nor a node: check reports what is missing.
+      assertThat(ids(CliHarness.run(taskwarrior.environment(), false, "graph", "effort:orphan")))
+            .containsExactly("effort:orphan");
+      assertThat(ids(CliHarness.run(taskwarrior.environment(), false, "graph", "task:1")))
+            .containsExactly("task:" + fixBug, "project:Alpha");
+   }
+
+   /**
+    * Writes a yearly goal, a quarterly goal under it, and an active effort toward the quarterly goal, as
+    * {@code goal new} and {@code effort new} write them.
+    *
+    * @return the absolute path of the effort's note.
+    * @throws IOException when a note cannot be written.
+    */
+   private Path plan() throws IOException {
+      note("goals/2026/2026-G1-provably-correct.md", """
+            ---
+            title: Provably correct
+            status: open
+            date: 2026-01-05T09:00:00+01:00
+            ---
+            """);
+      note("goals/2026/Q4/2026-Q4-G1-fix-the-bugs.md", """
+            ---
+            title: Fix the bugs
+            status: open
+            parent: 2026-G1
+            date: 2026-10-01T09:00:00+01:00
+            ---
+            """);
+      return note("efforts/infinijepsen-demo.md", """
+            ---
+            title: InfiniJepsen demo
+            status: active
+            goal: 2026-Q4-G1
+            date: 2026-10-05T09:00:00+01:00
+            ---
+            """);
    }
 
    /**

@@ -49,6 +49,7 @@ import tools.jackson.databind.node.ObjectNode;
  * ztk graph task:3 --kind note --type zettel
  * ztk graph project:Alpha --edges project
  * ztk graph 20261015-causality --edges link --limit 100
+ * ztk graph 2026-Q4-G1 --edges goal,effort
  * </pre>
  *
  * @since 1.0
@@ -68,13 +69,14 @@ public final class GraphCommand implements Command<ZtkInvocation> {
          .build();
 
    @Argument(description = "The node to start from: note:<path|name> or a name, task:<uuid|number> or a number, "
-         + "or project:<name>", required = true, completer = NodeCompleter.class, completeFallback = CompletionFallback.NONE)
+         + "project:<name>, goal:<id> or a goal ID, or effort:<slug>", required = true, completer = NodeCompleter.class,
+         completeFallback = CompletionFallback.NONE)
    String node;
 
    @Option(defaultValue = "2", description = "How many edges away from the node to go, e.g., 1 for its neighbors only")
    int depth;
 
-   @OptionList(name = "kind", allowedValues = { "note", "task", "project", "dangling" },
+   @OptionList(name = "kind", allowedValues = { "note", "task", "project", "goal", "effort", "dangling" },
          description = "Only walk through nodes of these kinds, comma-separated, e.g., 'note,task'")
    List<String> kinds;
 
@@ -82,7 +84,7 @@ public final class GraphCommand implements Command<ZtkInvocation> {
          description = "Only walk through notes of these types, comma-separated, e.g., 'zettel,paper'")
    List<NoteType> types;
 
-   @OptionList(name = "edges", allowedValues = { "link", "note", "project" },
+   @OptionList(name = "edges", allowedValues = { "link", "note", "project", "effort", "goal" },
          description = "Only follow edges of these kinds, comma-separated, e.g., 'link'")
    List<String> edges;
 

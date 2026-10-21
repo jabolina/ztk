@@ -24,7 +24,7 @@ interface PlanningStatus extends Labeled {
     *
     * <p>
     * Moving to a closed status dates it in {@code closed}; setting the current closed status again keeps the date it
-    * first closed, and moving to an open status removes it.
+    * first closed, or dates it when it has none, and moving to an open status removes it.
     * </p>
     *
     * @param fields the frontmatter fields, changed in place.
@@ -35,7 +35,7 @@ interface PlanningStatus extends Labeled {
       fields.put("status", label());
       if (!closed()) {
          fields.remove("closed");
-      } else if (current.filter(this::equals).isEmpty()) {
+      } else if (current.filter(this::equals).isEmpty() || !fields.has("closed")) {
          fields.put("closed", today.toString());
       }
    }

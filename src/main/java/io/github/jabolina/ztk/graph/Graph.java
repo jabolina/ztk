@@ -32,13 +32,14 @@ public final class Graph {
     * Where a walk starts, and how far and through what it goes.
     *
     * @param start The node ID to start from, as typed: e.g. {@code note:zettel/20261015-causality}, a note's name,
-    *              {@code task:<uuid|short uuid|number>}, a task number, or {@code project:<name>}.
+    *              {@code task:<uuid|short uuid|number>}, a task number, {@code project:<name>}, {@code goal:<id>} or
+    *              a bare goal ID, or {@code effort:<slug>}.
     * @param depth How many edges away from the start node to go, 0 or more; 0 for the start node alone.
     * @param kinds The kinds of nodes the walk goes through, e.g. {@code note}; empty for every kind.
     * @param types The types of notes the walk goes through, e.g. {@code zettel}; empty for every type. Nodes other
     *              than notes have no type, and are kept.
-    * @param edges The kinds of edges the walk follows: {@code link}, {@code note} or {@code project}; empty for every
-    *              kind.
+    * @param edges The kinds of edges the walk follows: {@code link}, {@code note}, {@code project}, {@code effort} or
+    *              {@code goal}; empty for every kind.
     */
    public record Query(String start, int depth, Set<String> kinds, EnumSet<NoteType> types, Set<String> edges) {
 

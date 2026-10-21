@@ -12,7 +12,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * @param from      The node the edge is seen from.
  * @param to        The node at the other end.
- * @param kind      The kind of edge: {@code link}, {@code note} or {@code project}.
+ * @param kind      The kind of edge: {@code link}, {@code note}, {@code project}, {@code effort} or {@code goal}.
  * @param direction {@code out} when {@code from} points to {@code to}, {@code in} when it is pointed to.
  * @since 1.0
  * @author José Bolina

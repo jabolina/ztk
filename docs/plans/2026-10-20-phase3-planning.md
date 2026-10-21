@@ -8,9 +8,9 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-20, Task 2 done)
+## Where we left off (2026-10-21, Task 3 done)
 
-The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. Task 1 (Goals) and Task 2 (Efforts and their tasks) are done: `goal new|set|list|info`, `effort new|set|list|info|assign|unassign`, `add --effort`, `effort` in the common task shape, and goal and effort notes read as `goal:`/`effort:` nodes in `search`. Next: Task 3 (Graph and check).
+The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. Task 1 (Goals) and Task 2 (Efforts and their tasks) are done: `goal new|set|list|info`, `effort new|set|list|info|assign|unassign`, `add --effort`, `effort` in the common task shape, and goal and effort notes read as `goal:`/`effort:` nodes in `search`. Task 3 (Graph and check) is done: `goal`/`effort` graph nodes (with `status`) and edges, goal and effort IDs as start nodes, and the nine planning `check` codes. Next: Task 4 (completion and native smoke test).
 
 How `planning` is put together (agreed before Task 2; keep it this way):
 
@@ -18,12 +18,17 @@ How `planning` is put together (agreed before Task 2; keep it this way):
 - `Goals` reads efforts through `EffortNotes`/`EffortTasks`, not `Efforts`; `Efforts` reads goals through `GoalNotes`. Planning depends on tasks (`Efforts.add` calls `Tasks.add`), never the reverse. Both reach Taskwarrior through `Supplier<TaskStore>`, so commands that need no tasks never start it.
 - `PlanningNotes.planned(Path)` returns the note type and node ID; `Note.Planning` is the variant for goal and effort notes. A broader "note types as a seam" refactor of `KnowledgeBase` was discussed and put off: assess at the end of Phase 3 with the rest of the codebase.
 
-What Task 3 builds on:
+How Task 3 joined planning to the graph:
 
-- Until Task 3, goal and effort notes are `note`-kind graph nodes with `goal:`/`effort:` IDs, and `graph` does not find them by file name.
-- Unreadable goal or effort files fail the command, naming the file; Task 3's `check` reports them.
+- `graph` depends on `planning`, never the reverse. `planning.Plan` is a public reader of the whole plan (streams of every goal file, every effort, and misnamed goal-level notes); `KnowledgeGraph.read` consumes each stream once into its own indexes (goals by ID with every file, so duplicates are kept; efforts by slug). A goal's or effort's own note becomes a `Node.OfGoal`/`Node.OfEffort` everywhere; two files with one goal ID make one node, the first read.
+- The planning rules live in `graph.Check` (it sees tasks and the plan together), as `Problem` variants: `InPlan` (found in a goal's or effort's note) and `InTask`. Each rule yields an `Optional<Problem>`; nothing is collected in between.
+- Setting the current closed status again writes today's `closed` when it is missing, so `closed-mismatch` is fixed by a command.
+- Goal and effort files are read twice (wikilinks by the knowledge base, frontmatter by `Plan`); unreadable goal or effort files still fail the command, naming the file.
+
+What Task 4 builds on: `--kind`/`--edges`/`check --code` already list the new values as fixed lists; `graph` start nodes accept `goal:<id>`, a bare goal ID, `effort:<slug>` and an effort's bare slug.
 - Taskwarrior: `effort:x` filters by prefix (use `effort.is:`); `modify effort:` clears it; abbreviations down to `ef:` set it.
 - Left as small duplicates for the end-of-phase review: the status parsers in `GoalCommand`/`EffortCommand`, and `checked(slug)` in `Goals`/`Efforts` (different hints).
+- For the end-of-phase review (raised at the start of Task 3): `notes` and `planning` each know their own items, yet `graph` must know every kind (node variants, edges, check rules), so planning knowledge leaks into it. Task 3 takes the direct route (`graph` depends on `planning`: `Plan`, `Node.OfGoal`/`OfEffort`, planning rules in `Check`); assess whether modules should contribute their nodes, edges and problems to the graph through a seam instead.
 
 **Working agreement:** TDD; Claude writes tests and snippets, the user writes production code and runs the tests. Tasks are large: inside one, walk in larger strides (several behaviors per step when they are mechanical). Commit once a whole task is done. Verify Æsh/Taskwarrior behavior in the scratchpad, never against real data. Real notes in `~/cerebro` are only read, never written; nothing about this work goes there.
 

@@ -13,6 +13,7 @@ import io.github.jabolina.ztk.notes.Zettels;
 import io.github.jabolina.ztk.planning.Efforts;
 import io.github.jabolina.ztk.planning.Goals;
 import io.github.jabolina.ztk.planning.Levels;
+import io.github.jabolina.ztk.planning.Plan;
 import io.github.jabolina.ztk.search.Search;
 import io.github.jabolina.ztk.tasks.Tasks;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
@@ -131,7 +132,7 @@ public final class Context {
    }
 
    /**
-    * Reads the graph of the knowledge base: its notes, and the tasks and projects of Taskwarrior.
+    * Reads the graph of the knowledge base: its notes, goals and efforts, and the tasks and projects of Taskwarrior.
     *
     * <p>
     * Read again on every call, as the notes and tasks are now.
@@ -142,7 +143,7 @@ public final class Context {
     *                      {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails.
     */
    public KnowledgeGraph graph() {
-      return KnowledgeGraph.read(knowledgeBase(), store());
+      return KnowledgeGraph.read(knowledgeBase(), store(), new Plan(configuration(), Clock.systemDefaultZone()));
    }
 
    /**

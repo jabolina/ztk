@@ -89,6 +89,59 @@ final class GoalNotes {
    }
 
    /**
+    * Reads every goal, of every year and quarter: the notes directly in a year's or a quarter's folder whose names are
+    * goal IDs of that period.
+    *
+    * @return the goals, read as the stream is consumed, in no particular order; empty when the folder does not exist.
+    *         It must be closed, e.g. with try-with-resources, to release the folders.
+    * @throws UncheckedIOException when a folder cannot be listed or a goal cannot be read.
+    */
+   Stream<Goal> all() {
+      Path goals = configuration.folders().goals();
+      // Anything else under the folders is material, or a goal of no level.
+      return files().flatMap(file -> Levels.goal(goals.relativize(file)).map(id -> read(id, file)).stream());
+   }
+
+   /**
+    * Lists the notes sitting where goals do, but not named after a goal ID of their folder, e.g.
+    * {@code goals/2026/notes.md}.
+    *
+    * @return their absolute paths, in no particular order. It must be closed, e.g. with try-with-resources, to release
+    *         the folders.
+    * @throws UncheckedIOException when a folder cannot be listed.
+    */
+   Stream<Path> misnamed() {
+      Path goals = configuration.folders().goals();
+      return files().filter(file -> {
+         Path relative = goals.relativize(file);
+         return Levels.level(relative) && Levels.goal(relative).isEmpty();
+      });
+   }
+
+   /**
+    * Lists the files of the goals folder, as deep as quarterly goals sit.
+    *
+    * @return their absolute paths; empty when the folder does not exist. It must be closed, e.g. with
+    *         try-with-resources, to release the folders.
+    * @throws UncheckedIOException when a folder cannot be listed.
+    */
+   private Stream<Path> files() {
+      Path goals = configuration.folders().goals();
+      if (!Files.isDirectory(goals)) {
+         return Stream.empty();
+      }
+      Stream<Path> files;
+      try {
+         // Quarterly goals are the deepest, three levels down: 2026/Q4/2026-Q4-G1-fix-bugs.md.
+         files = Files.walk(goals, 3);
+      } catch (IOException e) {
+         throw new UncheckedIOException("Failed reading folder: " + goals, e);
+      }
+      // The walk's close handler carries over to the returned pipeline.
+      return files.filter(Files::isRegularFile);
+   }
+
+   /**
     * Reads the period a goal ID is for.
     *
     * @param id the bare goal ID, e.g. {@code 2026-Q4-G1}.

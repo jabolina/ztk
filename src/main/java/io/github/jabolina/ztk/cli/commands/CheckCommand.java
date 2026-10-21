@@ -26,7 +26,7 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code ztk check}: reports what is broken in the knowledge base, and how to fix it.
  *
  * <p>
- * Read-only: it never changes a note or a task. It fails when it finds errors, so it can guard a script or a commit.
+ * Read-only: it never changes a note, a goal, an effort or a task. It fails when it finds errors, so it can guard a script or a commit.
  * </p>
  *
  * <pre>
@@ -39,7 +39,7 @@ import tools.jackson.databind.node.ObjectNode;
  * @since 1.0
  * @author José Bolina
  */
-@CommandDefinition(name = "check", description = "Report broken links and tasks in the knowledge base", generateHelp = true)
+@CommandDefinition(name = "check", description = "Report broken links, tasks, goals and efforts in the knowledge base", generateHelp = true)
 public final class CheckCommand implements Command<ZtkInvocation> {
 
    // One row per problem; the path with its line, as editors open it.
@@ -54,7 +54,9 @@ public final class CheckCommand implements Command<ZtkInvocation> {
          .build();
 
    @OptionList(name = "code", allowedValues = { "dangling-link", "missing-note", "task-without-project", "ambiguous-link",
-         "orphan-task-note", "unreadable-note" }, description = "Only report problems with these codes, comma-separated")
+         "orphan-task-note", "unreadable-note", "unknown-effort", "missing-goal", "unknown-goal", "invalid-status",
+         "invalid-goal-name", "duplicate-goal", "needs-closing", "closed-mismatch", "open-task-in-closed-effort" },
+         description = "Only report problems with these codes, comma-separated")
    List<String> codes;
 
    @Option(description = "Only report problems of this project's notes and tasks, e.g., 'Alpha'", completer = ProjectCompleter.class)

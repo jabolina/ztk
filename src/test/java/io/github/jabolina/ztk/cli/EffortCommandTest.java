@@ -197,6 +197,17 @@ class EffortCommandTest {
    }
 
    @Test
+   void effortSetTheSameClosedStatusDatesItWhenItHasNoClosedDate() throws IOException {
+      // Closed by hand, without the date: check reports a closed mismatch, and this fixes it.
+      Path effort = note("efforts/infinijepsen-demo.md", effort("done", "2026-Q4-G1", null));
+
+      Result result = run("effort", "set", "infinijepsen-demo", "--status", "done");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(frontmatter(effort).path("closed").asString()).isEqualTo(LocalDate.now().toString());
+   }
+
+   @Test
    void effortSetTitleChangesOnlyTheTitleAndAcceptsTheNodeId() throws IOException {
       Path effort = note("efforts/infinijepsen-demo.md", effort("active", "2026-Q4-G1", null));
 

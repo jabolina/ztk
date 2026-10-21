@@ -302,7 +302,9 @@ class CheckCommandTest {
       assertThat(result.out()).isEmpty();
       assertThat(result.err()).contains("'dangling'")
             .contains("dangling-link", "missing-note", "task-without-project", "ambiguous-link", "orphan-task-note",
-                  "unreadable-note");
+                  "unreadable-note", "unknown-effort", "missing-goal", "unknown-goal", "invalid-status",
+                  "invalid-goal-name", "duplicate-goal", "needs-closing", "closed-mismatch",
+                  "open-task-in-closed-effort");
    }
 
    @Test
@@ -336,6 +338,338 @@ class CheckCommandTest {
       assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.NOT_FOUND.exitCode());
       assertThat(result.out()).isEmpty();
       assertThat(result.err()).contains("Alph").contains("task projects");
+   }
+
+   @Test
+   void aGoalOrEffortWithoutAStatusOfItsKindIsAnInvalidStatusError() throws IOException {
+      // An effort's status, not a goal's.
+      Path goal = note("goals/2026/2026-G1-provably-correct.md", goal("done", null));
+      Path effort = note("efforts/infinijepsen-demo.md", """
+            ---
+            title: InfiniJepsen demo
+            goal: 2026-Q4-G1
+            ---
+            """);
+      note("goals/2026/Q4/2026-Q4-G1-fix-the-bugs.md", goal("open", "2026-G1"));
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "invalid-status");
+
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
+      JsonNode problems = JSON.readTree(result.out()).path("problems");
+      assertThat(codes(problems)).containsExactlyInAnyOrder("invalid-status goal:2026-G1",
+            "invalid-status effort:infinijepsen-demo");
+
+      JsonNode ofGoal = problem(problems, "goal:2026-G1");
+      assertThat(ofGoal.path("severity").asString()).isEqualTo("error");
+      assertThat(ofGoal.path("path").asString()).isEqualTo(goal.toString());
+      assertThat(ofGoal.path("line").isNull()).isTrue();
+      assertThat(ofGoal.path("message").asString()).contains("status");
+      // The command setting it, with the statuses of its kind.
+      assertThat(ofGoal.path("hint").asString()).contains("ztk goal set 2026-G1 --status")
+            .contains("open|reached|missed|dropped");
+
+      JsonNode ofEffort = problem(problems, "effort:infinijepsen-demo");
+      assertThat(ofEffort.path("path").asString()).isEqualTo(effort.toString());
+      assertThat(ofEffort.path("hint").asString()).contains("ztk effort set infinijepsen-demo --status")
+            .contains("planned|active|done|dropped");
+   }
+
+   @Test
+   void anEffortOrQuarterlyGoalPointingToNoGoalIsAMissingGoalError() throws IOException {
+      // Yearly goals point to nothing.
+      note("goals/2026/2026-G1-provably-correct.md", goal("open", null));
+      note("goals/2026/Q4/2026-Q4-G1-fix-the-bugs.md", goal("open", null));
+      note("efforts/infinijepsen-demo.md", """
+            ---
+            title: InfiniJepsen demo
+            status: active
+            ---
+            """);
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "missing-goal");
+
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
+      JsonNode problems = JSON.readTree(result.out()).path("problems");
+      assertThat(codes(problems)).containsExactlyInAnyOrder("missing-goal goal:2026-Q4-G1",
+            "missing-goal effort:infinijepsen-demo");
+      // The command pointing it at a goal, and where to find one of the right level.
+      assertThat(problem(problems, "goal:2026-Q4-G1").path("hint").asString())
+            .contains("yearly goal of 2026")
+            .contains("ztk goal set 2026-Q4-G1 --parent")
+            .contains("ztk goal list 2026");
+      assertThat(problem(problems, "effort:infinijepsen-demo").path("hint").asString())
+            .contains("quarterly goal")
+            .contains("ztk effort set infinijepsen-demo --goal")
+            .contains("ztk goal list");
+   }
+
+   @Test
+   void aGoalNamedThatIsNotThereOrNotOfTheRightLevelOrYearIsAnUnknownGoalError() throws IOException {
+      note("goals/2025/2025-G1-ship-it.md", goal("open", null));
+      note("goals/2026/2026-G1-provably-correct.md", goal("open", null));
+      // A yearly goal of another year.
+      note("goals/2026/Q4/2026-Q4-G1-fix-the-bugs.md", goal("open", "2025-G1"));
+      // A quarterly goal, not a yearly one.
+      note("goals/2026/Q4/2026-Q4-G2-write-docs.md", goal("open", "2026-Q4-G1"));
+      // As they should be: no problem.
+      note("goals/2026/Q4/2026-Q4-G3-tidy-up.md", goal("open", "2026-G1"));
+      note("efforts/tidy.md", effort("2026-Q4-G3"));
+      // No goal has the ID.
+      note("efforts/infinijepsen-demo.md", effort("2026-Q4-G9"));
+      // A yearly goal, not a quarterly one.
+      note("efforts/consensus.md", effort("2026-G1"));
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "unknown-goal");
+
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
+      JsonNode problems = JSON.readTree(result.out()).path("problems");
+      assertThat(codes(problems)).containsExactlyInAnyOrder("unknown-goal goal:2026-Q4-G1",
+            "unknown-goal goal:2026-Q4-G2", "unknown-goal effort:infinijepsen-demo", "unknown-goal effort:consensus");
+
+      // What it points to, and why that will not do.
+      assertThat(problem(problems, "goal:2026-Q4-G1").path("message").asString())
+            .contains("2025-G1").contains("yearly goal of 2026");
+      assertThat(problem(problems, "goal:2026-Q4-G2").path("message").asString())
+            .contains("2026-Q4-G1").contains("yearly goal of 2026");
+      assertThat(problem(problems, "effort:infinijepsen-demo").path("message").asString())
+            .contains("2026-Q4-G9").contains("no goal");
+      assertThat(problem(problems, "effort:consensus").path("message").asString())
+            .contains("2026-G1").contains("quarterly goal");
+      // As for a missing goal: the command pointing it at the right one.
+      assertThat(problem(problems, "goal:2026-Q4-G1").path("hint").asString())
+            .contains("ztk goal set 2026-Q4-G1 --parent");
+      assertThat(problem(problems, "effort:consensus").path("hint").asString())
+            .contains("ztk effort set consensus --goal");
+   }
+
+   @Test
+   void aNoteInAGoalFolderNotNamedAfterAGoalIdOfThatFolderIsAnInvalidGoalNameError() throws IOException {
+      Path notes = note("goals/2026/notes.md", "Thoughts on the year.\n");
+      // A quarterly goal's name, in the year's folder.
+      note("goals/2026/2026-Q4-G1-fix-the-bugs.md", goal("open", "2026-G1"));
+      // Another year's goal.
+      note("goals/2026/Q4/2025-Q4-G1-ship-it.md", goal("open", "2025-G1"));
+      // Material, in a subfolder: no problem.
+      note("goals/2026/Q4/data/benchmarks.md", "Numbers.\n");
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "invalid-goal-name");
+
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
+      JsonNode problems = JSON.readTree(result.out()).path("problems");
+      // Read as plain notes, since they are no goals.
+      assertThat(codes(problems)).containsExactlyInAnyOrder("invalid-goal-name note:goals/2026/notes",
+            "invalid-goal-name note:goals/2026/2026-Q4-G1-fix-the-bugs",
+            "invalid-goal-name note:goals/2026/Q4/2025-Q4-G1-ship-it");
+      JsonNode problem = problem(problems, "note:goals/2026/notes");
+      assertThat(problem.path("severity").asString()).isEqualTo("error");
+      assertThat(problem.path("path").asString()).isEqualTo(notes.toString());
+      // Either a goal to rename, or material to move.
+      assertThat(problem.path("hint").asString()).contains("Rename").contains("subfolder");
+   }
+
+   @Test
+   void twoGoalFilesWithOneIdAreEachADuplicateGoalError() throws IOException {
+      Path first = note("goals/2026/2026-G1-provably-correct.md", goal("open", null));
+      Path second = note("goals/2026/2026-G1-fast.md", goal("open", null));
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "duplicate-goal");
+
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
+      JsonNode problems = JSON.readTree(result.out()).path("problems");
+      // One per file, each naming the other.
+      assertThat(problems.valueStream().map(problem -> problem.path("path").asString()))
+            .containsExactly(second.toString(), first.toString());
+      assertThat(problems.get(0).path("id").asString()).isEqualTo("goal:2026-G1");
+      assertThat(problems.get(0).path("message").asString()).contains(first.toString());
+      assertThat(problems.get(1).path("message").asString()).contains(second.toString());
+      assertThat(problems.get(0).path("hint").asString()).contains("Rename");
+   }
+
+   @Test
+   void aTaskNamingNoEffortIsAnUnknownEffortErrorDoneOnesIncluded() throws IOException {
+      note("goals/2026/2026-G1-provably-correct.md", goal("open", null));
+      note("goals/2026/Q4/2026-Q4-G1-fix-the-bugs.md", goal("open", "2026-G1"));
+      note("efforts/infinijepsen-demo.md", effort("2026-Q4-G1"));
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Fix bug", "project:Alpha", "effort:ghost");
+      String fixBug = taskwarrior.task("_get", "1.uuid");
+      // Summaries count done tasks, so their effort must be right too.
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Old bug", "project:Beta", "effort:ghost");
+      String oldBug = taskwarrior.task("_get", "2.uuid");
+      taskwarrior.task("rc.confirmation=off", "2", "done");
+      // As it should be: no problem.
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Demo", "project:Alpha", "effort:infinijepsen-demo");
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "unknown-effort");
+
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
+      JsonNode problems = JSON.readTree(result.out()).path("problems");
+      assertThat(codes(problems)).containsExactlyInAnyOrder("unknown-effort task:" + fixBug,
+            "unknown-effort task:" + oldBug);
+      JsonNode problem = problem(problems, "task:" + fixBug);
+      assertThat(problem.path("severity").asString()).isEqualTo("error");
+      assertThat(problem.path("message").asString()).contains("Fix bug").contains("ghost");
+      // Moved to an existing effort, or out of any; ztk takes the full UUID, which done tasks keep.
+      assertThat(problem.path("hint").asString())
+            .contains("ztk effort assign <slug> " + fixBug)
+            .contains("ztk effort unassign " + fixBug);
+
+      // A task's problem belongs to the task's project.
+      Result beta = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "unknown-effort",
+            "--project", "Beta");
+
+      assertThat(codes(JSON.readTree(beta.out()).path("problems"))).containsExactly("unknown-effort task:" + oldBug);
+   }
+
+   @Test
+   void anOpenTaskInAClosedEffortIsAWarning() throws IOException {
+      note("goals/2026/2026-G1-provably-correct.md", goal("open", null));
+      note("goals/2026/Q4/2026-Q4-G1-fix-the-bugs.md", goal("open", "2026-G1"));
+      note("efforts/infinijepsen-demo.md", """
+            ---
+            title: InfiniJepsen demo
+            status: done
+            closed: 2026-10-10
+            goal: 2026-Q4-G1
+            ---
+            """);
+      // Left behind when the effort closed.
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Fix bug", "project:Alpha", "effort:infinijepsen-demo");
+      String fixBug = taskwarrior.task("_get", "1.uuid");
+      // Done before it closed: as it should be.
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Old bug", "project:Alpha", "effort:infinijepsen-demo");
+      taskwarrior.task("rc.confirmation=off", "2", "done");
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check");
+
+      // A warning: the work may be finished, moved, or the effort reopened.
+      assertThat(result.exitCode()).isZero();
+      JsonNode problems = JSON.readTree(result.out()).path("problems");
+      assertThat(codes(problems)).containsExactly("open-task-in-closed-effort task:" + fixBug);
+      JsonNode problem = problems.get(0);
+      assertThat(problem.path("severity").asString()).isEqualTo("warning");
+      assertThat(problem.path("message").asString()).contains("Fix bug").contains("infinijepsen-demo").contains("done");
+      assertThat(problem.path("hint").asString())
+            .contains("task " + fixBug.substring(0, 8) + " done")
+            .contains("ztk effort assign <slug> " + fixBug)
+            .contains("ztk effort set infinijepsen-demo --status active");
+   }
+
+   @Test
+   void anOpenGoalWhosePeriodEndedNeedsClosingWarning() throws IOException {
+      Path open = note("goals/2025/2025-G1-ship-it.md", goal("open", null));
+      // Closed, with the day it closed: as it should be.
+      note("goals/2025/2025-G2-fast.md", """
+            ---
+            title: Fast
+            status: reached
+            closed: 2025-12-20
+            ---
+            """);
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check");
+
+      assertThat(result.exitCode()).isZero();
+      JsonNode problems = JSON.readTree(result.out()).path("problems");
+      assertThat(codes(problems)).containsExactly("needs-closing goal:2025-G1");
+      JsonNode problem = problems.get(0);
+      assertThat(problem.path("severity").asString()).isEqualTo("warning");
+      assertThat(problem.path("path").asString()).isEqualTo(open.toString());
+      assertThat(problem.path("message").asString()).contains("2025");
+      // Only the user can say whether it was reached, missed or dropped.
+      assertThat(problem.path("hint").asString()).contains("ztk goal set 2025-G1 --status <reached|missed|dropped>");
+   }
+
+   @Test
+   void aClosedDateNotAgreeingWithTheStatusIsAClosedMismatchWarning() throws IOException {
+      // Closed by hand, without the date.
+      note("goals/2026/2026-G1-provably-correct.md", """
+            ---
+            title: Provably correct
+            status: reached
+            ---
+            """);
+      note("goals/2026/Q4/2026-Q4-G1-fix-the-bugs.md", goal("open", "2026-G1"));
+      // Reopened by hand, keeping the date.
+      note("efforts/infinijepsen-demo.md", """
+            ---
+            title: InfiniJepsen demo
+            status: active
+            closed: 2026-10-10
+            goal: 2026-Q4-G1
+            ---
+            """);
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "closed-mismatch");
+
+      assertThat(result.exitCode()).isZero();
+      JsonNode problems = JSON.readTree(result.out()).path("problems");
+      assertThat(codes(problems)).containsExactlyInAnyOrder("closed-mismatch goal:2026-G1",
+            "closed-mismatch effort:infinijepsen-demo");
+
+      JsonNode undated = problem(problems, "goal:2026-G1");
+      assertThat(undated.path("severity").asString()).isEqualTo("warning");
+      assertThat(undated.path("message").asString()).contains("reached").contains("no closed date");
+      // Setting the status again dates it.
+      assertThat(undated.path("hint").asString()).contains("ztk goal set 2026-G1 --status reached");
+
+      JsonNode dated = problem(problems, "effort:infinijepsen-demo");
+      assertThat(dated.path("message").asString()).contains("active").contains("2026-10-10");
+      // Setting the status again clears it.
+      assertThat(dated.path("hint").asString()).contains("ztk effort set infinijepsen-demo --status active");
+   }
+
+   /**
+    * @param status the goal's status, e.g. {@code open}.
+    * @param parent the yearly goal of a quarterly goal; {@code null} for none.
+    * @return a goal note, as {@code goal new} writes it.
+    */
+   private static String goal(String status, String parent) {
+      return """
+            ---
+            title: A goal
+            status: %s
+            %sdate: 2026-01-05T09:00:00+01:00
+            ---
+            """.formatted(status, parent == null ? "" : "parent: " + parent + "\n");
+   }
+
+   /**
+    * @param goal the effort's quarterly goal.
+    * @return an active effort note, as {@code effort new} writes it.
+    */
+   private static String effort(String goal) {
+      return """
+            ---
+            title: An effort
+            status: active
+            goal: %s
+            date: 2026-10-05T09:00:00+01:00
+            ---
+            """.formatted(goal);
+   }
+
+   /**
+    * @param problems the {@code problems} array of a check run.
+    * @return each problem as its code and node ID, e.g. {@code missing-goal effort:infinijepsen-demo}.
+    */
+   private static List<String> codes(JsonNode problems) {
+      return problems.valueStream()
+            .map(problem -> problem.path("code").asString() + " " + problem.path("id").asString())
+            .toList();
+   }
+
+   /**
+    * @param problems the {@code problems} array of a check run.
+    * @param id the node ID the problem is found in.
+    * @return the only problem found in it.
+    */
+   private static JsonNode problem(JsonNode problems, String id) {
+      return problems.valueStream()
+            .filter(problem -> problem.path("id").asString().equals(id))
+            .reduce((one, other) -> {
+               throw new AssertionError("Several problems in " + id + ": " + problems);
+            })
+            .orElseThrow(() -> new AssertionError(id + " not in " + problems));
    }
 
    /**

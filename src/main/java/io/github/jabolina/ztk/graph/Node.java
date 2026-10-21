@@ -4,12 +4,16 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 import io.github.jabolina.ztk.notes.Note;
+import io.github.jabolina.ztk.planning.Effort;
+import io.github.jabolina.ztk.planning.EffortStatus;
+import io.github.jabolina.ztk.planning.Goal;
+import io.github.jabolina.ztk.planning.GoalStatus;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.util.JsonWritable;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * One point of the graph: a note, a task, a project, or a wikilink target nothing has.
+ * One point of the graph: a note, a task, a project, a goal, an effort, or a wikilink target nothing has.
  *
  * @since 1.0
  * @author José Bolina
@@ -22,12 +26,14 @@ public sealed interface Node extends JsonWritable {
    String id();
 
    /**
-    * @return what the node is, the prefix of its ID: {@code note}, {@code task}, {@code project} or {@code dangling}.
+    * @return what the node is, the prefix of its ID: {@code note}, {@code task}, {@code project}, {@code goal},
+    *         {@code effort} or {@code dangling}.
     */
    String kind();
 
    /**
-    * @return what people call it: a note's title, a task's description, a project's name, a dangling link's target.
+    * @return what people call it: a note's, goal's or effort's title, a task's description, a project's name, a
+    *         dangling link's target.
     */
    String title();
 
@@ -167,6 +173,101 @@ public sealed interface Node extends JsonWritable {
          target.put("title", title());
          // Null rather than left out, so every node has a path field.
          target.put("path", folder.map(Path::toString).orElse(null));
+         return target;
+      }
+   }
+
+   /**
+    * A goal or an effort: an item of the plan, whose own note it stands for.
+    */
+   sealed interface Planned extends Node { }
+
+   /**
+    * A yearly or quarterly goal as a node: its own note is the goal.
+    *
+    * @param goal The goal, as read from its note.
+    */
+   record OfGoal(Goal goal) implements Planned {
+
+      @Override
+      public String id() {
+         return "goal:" + goal.id();
+      }
+
+      @Override
+      public String kind() {
+         return "goal";
+      }
+
+      @Override
+      public String title() {
+         return goal.title();
+      }
+
+      @Override
+      public Optional<Path> path() {
+         return Optional.of(goal.path());
+      }
+
+      /**
+       * Writes the goal's {@code id}, {@code kind}, {@code title}, {@code path} and {@code status}.
+       *
+       * @param target the JSON object to write into.
+       * @return {@code target}, for chaining.
+       */
+      @Override
+      public ObjectNode writeJson(ObjectNode target) {
+         target.put("id", id());
+         target.put("kind", kind());
+         target.put("title", title());
+         target.put("path", goal.path().toString());
+         // Null when missing or naming no goal status, as goal list prints it.
+         target.put("status", goal.status().map(GoalStatus::label).orElse(null));
+         return target;
+      }
+   }
+
+   /**
+    * An effort as a node: its own note is the effort.
+    *
+    * @param effort The effort, as read from its note.
+    */
+   record OfEffort(Effort effort) implements Planned {
+
+      @Override
+      public String id() {
+         return "effort:" + effort.slug();
+      }
+
+      @Override
+      public String kind() {
+         return "effort";
+      }
+
+      @Override
+      public String title() {
+         return effort.title();
+      }
+
+      @Override
+      public Optional<Path> path() {
+         return Optional.of(effort.path());
+      }
+
+      /**
+       * Writes the effort's {@code id}, {@code kind}, {@code title}, {@code path} and {@code status}.
+       *
+       * @param target the JSON object to write into.
+       * @return {@code target}, for chaining.
+       */
+      @Override
+      public ObjectNode writeJson(ObjectNode target) {
+         target.put("id", id());
+         target.put("kind", kind());
+         target.put("title", title());
+         target.put("path", effort.path().toString());
+         // Null when missing or naming no effort status, as effort list prints it.
+         target.put("status", effort.status().map(EffortStatus::label).orElse(null));
          return target;
       }
    }

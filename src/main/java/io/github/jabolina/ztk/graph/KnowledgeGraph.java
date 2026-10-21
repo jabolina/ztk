@@ -17,6 +17,9 @@ import io.github.jabolina.ztk.notes.Note;
 import io.github.jabolina.ztk.notes.NoteWarning;
 import io.github.jabolina.ztk.notes.Wikilink;
 import io.github.jabolina.ztk.notes.Wikilinks;
+import io.github.jabolina.ztk.planning.Effort;
+import io.github.jabolina.ztk.planning.Goal;
+import io.github.jabolina.ztk.planning.Plan;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
 
@@ -42,6 +45,8 @@ public final class KnowledgeGraph {
    private static final String PROJECT = "project:";
    private static final String TASK = "task:";
    private static final String NOTE = "note:";
+   private static final String GOAL = "goal:";
+   private static final String EFFORT = "effort:";
 
    // Task numbers as Taskwarrior shows them; 0 is no task's.
    private static final Pattern NUMBER = Pattern.compile("[1-9]\\d*");
@@ -67,6 +72,13 @@ public final class KnowledgeGraph {
    private final Map<String, Node.OfTask> tasks = new HashMap<>();
    // The tasks whose note attribute names a file that is no note of the graph, done ones included.
    private final List<Node.OfTask> missingNotes = new ArrayList<>();
+   // Every goal file, by goal ID: the first read is the goal, any other is a duplicate. A goal or effort stands for
+   // its own note, whose node it replaces.
+   private final Map<String, List<Node.OfGoal>> goals = new HashMap<>();
+   // Every effort, by slug.
+   private final Map<String, Node.OfEffort> efforts = new HashMap<>();
+   // The notes sitting where goals do, but not named after a goal ID of their folder.
+   private final List<Note> misnamed = new ArrayList<>();
 
 
    // To find the note a task's note attribute names, which is relative to the knowledge base.
@@ -100,14 +112,15 @@ public final class KnowledgeGraph {
    private record NoteLinks(Note note, List<Wikilink> wikilinks) { }
 
    /**
-    * Reads the notes and tasks, and the edges between them.
+    * Reads the notes, tasks, goals and efforts, and the edges between them.
     *
     * @param knowledgeBase the notes, read once, one at a time.
     * @param store the tasks, exported once.
+    * @param plan the goals and efforts, read from their notes.
     * @return the graph, as the notes and tasks are now.
     * @throws ZtkException with {@link ZtkException.Kind#TASKWARRIOR} when Taskwarrior fails.
     */
-   public static KnowledgeGraph read(KnowledgeBase knowledgeBase, TaskStore store) {
+   public static KnowledgeGraph read(KnowledgeBase knowledgeBase, TaskStore store, Plan plan) {
       // Concurrent stream consuming would require a thread-safe list.
       List<NoteWarning> skipped = new ArrayList<>();
       KnowledgeGraph graph;
@@ -115,6 +128,17 @@ public final class KnowledgeGraph {
             Optional.of(new NoteLinks(note, Wikilinks.links(lines).toList())), skipped::add)) {
          graph = notes.collect(() -> new KnowledgeGraph(knowledgeBase, skipped), KnowledgeGraph::add,
                KnowledgeGraph::merge);
+      }
+
+      // Each read once, straight into the graph's own indexes.
+      try (Stream<Goal> goals = plan.goals();
+           Stream<Effort> efforts = plan.efforts();
+           Stream<Path> misnamed = plan.misnamed()) {
+         goals.forEach(goal -> graph.goals.computeIfAbsent(goal.id(), ignore -> new ArrayList<>())
+               .add(new Node.OfGoal(goal)));
+         efforts.forEach(effort -> graph.efforts.put(effort.slug(), new Node.OfEffort(effort)));
+         // Read as plain notes; one the knowledge base skipped is already an unreadable note.
+         misnamed.flatMap(path -> graph.note(path).stream()).forEach(graph.misnamed::add);
       }
 
       // One export for every task, done ones included.
@@ -201,23 +225,35 @@ public final class KnowledgeGraph {
     */
    Stream<Edge> edges(Node node) {
       return switch (node) {
-         case Node.OfNote(Note note) -> Stream.of(
-                     linksFrom(note),
-                     linksTo(node, List.of(fileName(note))),
-                     Stream.ofNullable(taskByNote.get(note.id())).map(task -> new Edge(node, task, "note", "in")))
-               .flatMap(Function.identity());
+         case Node.OfNote(Note note) -> Stream.concat(
+               links(node),
+               Stream.ofNullable(taskByNote.get(note.id())).map(task -> new Edge(node, task, "note", "in")));
 
-         // The task holds its note and project edges, so both go out; notes link to it by either UUID.
+         // The task holds its note, project and effort edges, so they go out; notes link to it by either UUID.
          case Node.OfTask task -> Stream.of(
-                     task.note().stream().map(note -> new Edge(node, new Node.OfNote(note), "note", "out")),
+                     task.note().stream().map(note -> new Edge(node, node(note), "note", "out")),
                      task.task().project().map(projects::get).stream()
                            .map(project -> new Edge(node, project, "project", "out")),
+                     task.task().effort().flatMap(this::effort).stream()
+                           .map(effort -> new Edge(node, effort, "effort", "out")),
                      linksTo(node, List.of(task.task().uuid(), task.task().uuid().substring(0, 8))))
                .flatMap(Function.identity());
 
          case Node.OfProject project -> tasks.values().stream()
                .filter(task -> task.task().project().equals(Optional.of(project.name())))
                .map(task -> new Edge(node, task, "project", "in"));
+
+         // Up to its yearly goal, down to its quarterly goals or efforts.
+         case Node.OfGoal goal -> Stream.concat(links(node), goalEdges(goal));
+
+         // Up to its goal, down to its tasks.
+         case Node.OfEffort effort -> Stream.of(
+                     links(node),
+                     goalEdges(effort),
+                     tasks.values().stream()
+                           .filter(task -> task.task().effort().equals(Optional.of(effort.effort().slug())))
+                           .map(task -> new Edge(node, task, "effort", "in")))
+               .flatMap(Function.identity());
 
          // Nothing is there yet to link anywhere, but notes link to it.
          case Node.OfDangling dangling -> linksTo(node, List.of(dangling.target()));
@@ -282,14 +318,59 @@ public final class KnowledgeGraph {
     * @return the note read from that file; empty when there is no such file, or it could not be read.
     */
    private Optional<Note> noteAt(String attribute) {
-      return Optional.ofNullable(byPath.get(knowledgeBase.resolve(attribute)));
+      return note(knowledgeBase.resolve(attribute));
+   }
+
+   /**
+    * Finds the note read from a file.
+    *
+    * @param path the file's absolute path.
+    * @return its note; empty when it is no note of the graph, e.g. because it could not be read.
+    */
+   Optional<Note> note(Path path) {
+      return Optional.ofNullable(byPath.get(path));
+   }
+
+   /**
+    * @return every goal, one per file: two files with one goal ID are both there.
+    */
+   Stream<Node.OfGoal> goals() {
+      return goals.values().stream().flatMap(List::stream);
+   }
+
+   /**
+    * Finds the files of a goal ID.
+    *
+    * @param id the bare goal ID, e.g. {@code 2026-Q4-G1}.
+    * @return the goals with that ID, the first read being the graph's node and any other a duplicate; empty when no
+    *         goal has it. Not to be changed.
+    */
+   List<Node.OfGoal> goals(String id) {
+      return goals.getOrDefault(id, List.of());
+   }
+
+   /**
+    * @return every effort.
+    */
+   Stream<Node.OfEffort> efforts() {
+      return efforts.values().stream();
+   }
+
+   /**
+    * @return the notes sitting where goals do, directly in a year's or a quarter's folder, but not named after a goal
+    *         ID of that folder.
+    */
+   Stream<Note> misnamed() {
+      return misnamed.stream();
    }
 
    /**
     * Finds the node an ID names.
     *
     * @param id the node ID as typed: {@code task:<uuid|short uuid|number>} or a bare number for a task,
-    *           {@code project:<name>} for a project, and {@code note:<path|name>} or a bare name for a note.
+    *           {@code project:<name>} for a project, {@code goal:<id>} or a bare goal ID for a goal,
+    *           {@code effort:<slug>} for an effort, and {@code note:<path|name>} or a bare name for a note or an
+    *           effort.
     * @return the node with that ID.
     * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no node has that ID, and with
     *                      {@link ZtkException.Kind#VALIDATION} when it matches several.
@@ -304,6 +385,16 @@ public final class KnowledgeGraph {
          return one(id, tasks.values().stream().filter(task -> matches(task.task(), reference)),
                "Find the task numbers with: task list");
       }
+      if (id.startsWith(GOAL) || id.startsWith(EFFORT)) {
+         return one(id, planned(id).stream(), id.startsWith(GOAL)
+               ? "List the goals with: ztk goal list"
+               : "List the efforts with: ztk effort list");
+      }
+      // A bare goal ID, e.g. 2026-Q4-G1. No note has that name: a goal's file name goes on with its slug.
+      Optional<Node> goal = goal(id);
+      if (goal.isPresent()) {
+         return goal.get();
+      }
       String name = id.startsWith(NOTE) ? id.substring(NOTE.length()) : id;
       // Its path first, which is also the name of a note at the root, then its name anywhere: as a wikilink
       // written at the root leads.
@@ -311,7 +402,7 @@ public final class KnowledgeGraph {
       Stream<Note> matching = exact != null
             ? Stream.of(exact.note())
             : byName.getOrDefault(name, List.of()).stream();
-      return one(id, matching.map(Node.OfNote::new), "Find a note's ID with: ztk search <words>");
+      return one(id, matching.map(this::node), "Find a note's ID with: ztk search <words>");
    }
 
    /**
@@ -344,7 +435,7 @@ public final class KnowledgeGraph {
             .findFirst()
             .map(List::of)
             .orElse(named);
-      return notes.stream().<Node>map(Node.OfNote::new).toList();
+      return notes.stream().map(this::node).toList();
    }
 
    /**
@@ -387,18 +478,35 @@ public final class KnowledgeGraph {
    }
 
    /**
+    * Lists the wikilink edges of a node with a note, both ways.
+    *
+    * @param node a note, goal or effort.
+    * @return an edge to each node its note's wikilinks lead to, then from each note whose wikilinks lead to it; none
+    *         when its note was not read.
+    */
+   private Stream<Edge> links(Node node) {
+      NoteLinks noteLinks = byId.get(node.id());
+      // A goal or effort whose note the knowledge base skipped: no wikilinks to follow.
+      if (noteLinks == null) {
+         return Stream.empty();
+      }
+      return Stream.concat(linksFrom(node, noteLinks), linksTo(node, List.of(fileName(noteLinks.note()))));
+   }
+
+   /**
     * Lists the edges of a note's wikilinks.
     *
-    * @param note a note.
+    * @param node the node of the note, the edges are seen from.
+    * @param noteLinks the note with its wikilinks.
     * @return an edge to each node its wikilinks lead to.
     */
-   private Stream<Edge> linksFrom(Note note) {
-      return byId.get(note.id()).wikilinks().stream()
+   private Stream<Edge> linksFrom(Node node, NoteLinks noteLinks) {
+      return noteLinks.wikilinks().stream()
             .map(Wikilink::target)
             // A target linked twice is still one edge.
             .distinct()
-            .flatMap(target -> resolve(note, target).stream())
-            .map(to -> new Edge(new Node.OfNote(note), to, "link", "out"));
+            .flatMap(target -> resolve(noteLinks.note(), target).stream())
+            .map(to -> new Edge(node, to, "link", "out"));
    }
 
    /**
@@ -413,7 +521,79 @@ public final class KnowledgeGraph {
       // Naming the node is not enough: the link must resolve to it from where it is written.
       return names.stream().flatMap(name -> linkingTo.getOrDefault(name, List.of()).stream()
             .filter(from -> resolve(from, name).contains(node))
-            .map(from -> new Edge(node, new Node.OfNote(from), "link", "in")));
+            .map(from -> new Edge(node, node(from), "link", "in")));
+   }
+
+   /**
+    * Lists the {@code goal} edges of a goal or effort.
+    *
+    * @param node a goal or effort.
+    * @return an edge to the goal it points to, then from each goal or effort pointing to it.
+    */
+   private Stream<Edge> goalEdges(Node.Planned node) {
+      return Stream.concat(
+            up(node).map(goal -> new Edge(node, goal, "goal", "out")).stream(),
+            Stream.<Node.Planned>concat(goals.values().stream().map(List::getFirst), efforts.values().stream())
+                  .filter(other -> up(other).equals(Optional.of(node)))
+                  .map(other -> new Edge(node, other, "goal", "in")));
+   }
+
+   /**
+    * Finds the goal a goal or effort points to: a quarterly goal's {@code parent}, an effort's {@code goal}.
+    *
+    * @param node a goal or effort.
+    * @return the goal it names; empty when it names none, or a goal that does not exist.
+    */
+   private Optional<Node> up(Node.Planned node) {
+      Optional<String> goal = switch (node) {
+         // Empty for a yearly goal.
+         case Node.OfGoal quarterly -> quarterly.goal().parent();
+         case Node.OfEffort effort -> effort.effort().goal();
+      };
+      // Whatever level or year it names: check tells a wrong one apart.
+      return goal.flatMap(this::goal);
+   }
+
+   /**
+    * @param note a note of the graph.
+    * @return its node: the goal or effort for a goal's or effort's own note, the note otherwise.
+    */
+   private Node node(Note note) {
+      return planned(note.id()).orElseGet(() -> new Node.OfNote(note));
+   }
+
+   /**
+    * Finds a goal or effort by its node ID.
+    *
+    * @param id a node ID, e.g. {@code goal:2026-Q4-G1} or {@code effort:infinijepsen-demo}.
+    * @return the goal or effort; empty when none has the ID, or it names neither.
+    */
+   private Optional<Node> planned(String id) {
+      if (id.startsWith(GOAL)) {
+         return goal(id.substring(GOAL.length()));
+      }
+      if (id.startsWith(EFFORT)) {
+         return effort(id.substring(EFFORT.length())).map(Node.class::cast);
+      }
+      return Optional.empty();
+   }
+
+   /**
+    * @param id the bare goal ID, e.g. {@code 2026-Q4-G1}.
+    * @return the goal; empty when none has the ID. Of two files with one ID, the first read; check reports both.
+    */
+   private Optional<Node> goal(String id) {
+      return Optional.ofNullable(goals.get(id)).<Node>map(List::getFirst);
+   }
+
+   /**
+    * Finds an effort.
+    *
+    * @param slug the effort's slug, e.g. {@code infinijepsen-demo}.
+    * @return the effort; empty when none has the slug.
+    */
+   Optional<Node.OfEffort> effort(String slug) {
+      return Optional.ofNullable(efforts.get(slug));
    }
 
    /**

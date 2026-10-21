@@ -1,6 +1,8 @@
 package io.github.jabolina.ztk.graph;
 
+import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -8,10 +10,14 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import io.github.jabolina.ztk.ZtkException;
+import io.github.jabolina.ztk.planning.Effort;
+import io.github.jabolina.ztk.planning.EffortStatus;
+import io.github.jabolina.ztk.planning.Goal;
+import io.github.jabolina.ztk.planning.Period;
 
 /**
- * Finds what is broken in the graph of the knowledge base: links leading nowhere, and tasks and notes that lost each
- * other.
+ * Finds what is broken in the graph of the knowledge base: links leading nowhere, tasks and notes that lost each
+ * other, and goals and efforts that break the rules of the plan.
  *
  * <p>
  * Only reports: users and agents fix the problems themselves.
@@ -66,7 +72,8 @@ public final class Check {
       Predicate<Problem> inProject = filter.project()
             .map(this::inProject)
             .orElse(ignore -> true);
-      return Stream.of(linkProblems(), missingNotes(), tasksWithoutProject(), orphanTaskNotes(), unreadableNotes())
+      return Stream.of(linkProblems(), missingNotes(), tasksWithoutProject(), orphanTaskNotes(), unreadableNotes(),
+                  planProblems())
             .flatMap(Function.identity())
             .filter(problem -> filter.codes().isEmpty() || filter.codes().contains(problem.code()))
             .filter(inProject)
@@ -130,6 +137,112 @@ public final class Check {
     */
    private Stream<Problem> unreadableNotes() {
       return graph.skipped().map(Problem.UnreadableNote::new);
+   }
+
+   /**
+    * @return what is wrong with the goals and efforts, as read from their notes.
+    */
+   private Stream<Problem> planProblems() {
+      return Stream.of(
+                  graph.goals().flatMap(this::goalProblems),
+                  graph.efforts().flatMap(this::effortProblems),
+                  graph.misnamed().map(Problem.InvalidGoalName::new),
+                  graph.tasks().flatMap(task -> effortProblem(task).stream()))
+            .flatMap(Function.identity());
+   }
+
+   /**
+    * Tells what is wrong with a goal.
+    *
+    * @param item a goal, one of its files when several share its ID.
+    * @return its problems: its status, its ID shared with another file, and the goal it points to.
+    */
+   private Stream<Problem> goalProblems(Node.OfGoal item) {
+      Goal goal = item.goal();
+      Optional<Problem> status = goal.status().isPresent()
+            ? Optional.empty()
+            : Optional.of(new Problem.InvalidStatus(item));
+      List<Path> others = graph.goals(goal.id()).stream()
+            .map(other -> other.goal().path())
+            .filter(path -> !path.equals(goal.path()))
+            .toList();
+      Optional<Problem> duplicate = others.isEmpty()
+            ? Optional.empty()
+            : Optional.of(new Problem.DuplicateGoal(item, others));
+      // Only a quarterly goal points to a goal: a yearly goal of its own year.
+      Optional<Problem> parent = goal.period() instanceof Period.OfQuarter quarter
+            ? goal.parent()
+                  .map(named -> unknownGoal(item, named, found -> found.period().equals(quarter.ofYear())))
+                  .orElseGet(() -> Optional.of(new Problem.MissingGoal(item)))
+            : Optional.empty();
+      Optional<Problem> needsClosing = goal.needsClosing()
+            ? Optional.of(new Problem.NeedsClosing(item))
+            : Optional.empty();
+      Optional<Problem> mismatch = goal.status()
+            .filter(value -> value.closed() != goal.closed().isPresent())
+            .map(value -> new Problem.ClosedMismatch(item, value.label(), goal.closed()));
+      return Stream.of(status, duplicate, parent, needsClosing, mismatch).flatMap(Optional::stream);
+   }
+
+   /**
+    * Tells what is wrong with an effort.
+    *
+    * @param item an effort.
+    * @return its problems: its status, and the goal it points to.
+    */
+   private Stream<Problem> effortProblems(Node.OfEffort item) {
+      Effort effort = item.effort();
+      Optional<Problem> status = effort.status().isPresent()
+            ? Optional.empty()
+            : Optional.of(new Problem.InvalidStatus(item));
+      Optional<Problem> goal = effort.goal()
+            .map(named -> unknownGoal(item, named, found -> found.period() instanceof Period.OfQuarter))
+            .orElseGet(() -> Optional.of(new Problem.MissingGoal(item)));
+      Optional<Problem> mismatch = effort.status()
+            .filter(value -> value.closed() != effort.closed().isPresent())
+            .map(value -> new Problem.ClosedMismatch(item, value.label(), effort.closed()));
+      return Stream.of(status, goal, mismatch).flatMap(Optional::stream);
+   }
+
+   /**
+    * Tells what is wrong with the effort a task names.
+    *
+    * @param task a task, done ones included.
+    * @return the problem when no effort has the slug, or the task is still open in a closed effort; empty otherwise,
+    *         and for a task naming no effort.
+    */
+   private Optional<Problem> effortProblem(Node.OfTask task) {
+      Optional<String> slug = task.task().effort();
+      if (slug.isEmpty()) {
+         return Optional.empty();
+      }
+      Optional<Node.OfEffort> effort = graph.effort(slug.get());
+      if (effort.isEmpty()) {
+         return Optional.of(new Problem.UnknownEffort(task));
+      }
+      boolean closed = effort.get().effort().status().map(EffortStatus::closed).orElse(false);
+      return task.task().open() && closed
+            ? Optional.of(new Problem.OpenTaskInClosedEffort(task, effort.get()))
+            : Optional.empty();
+   }
+
+   /**
+    * Tells whether the goal a quarterly goal or an effort points to is one it may point to.
+    *
+    * @param item the quarterly goal or effort.
+    * @param named the goal ID it points to, e.g. {@code 2026-Q4-G1}.
+    * @param fits whether a goal is of the level and year it must point to.
+    * @return the problem when no goal has the ID, or the goal does not fit; empty otherwise.
+    */
+   private Optional<Problem> unknownGoal(Node.Planned item, String named, Predicate<Goal> fits) {
+      List<Node.OfGoal> found = graph.goals(named);
+      if (found.isEmpty()) {
+         return Optional.of(new Problem.UnknownGoal(item, named, false));
+      }
+      // Files sharing an ID share its level and year, read from it: any of them tells.
+      return fits.test(found.getFirst().goal())
+            ? Optional.empty()
+            : Optional.of(new Problem.UnknownGoal(item, named, true));
    }
 
    /**

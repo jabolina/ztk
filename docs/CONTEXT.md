@@ -61,6 +61,14 @@ _Avoid_: state, progress
 Where an effort stands, set by the user, never derived from its tasks: `planned`, `active`, `done` or `dropped`.
 _Avoid_: state, progress
 
+**Open work**:
+An `open` quarterly goal, a `planned` or `active` effort, or a pending task. Open work never sits under a closed goal or effort: it can't be added or moved there, and the parent closes only once nothing open is left under it.
+_Avoid_: unfinished, active work
+
+**Closing**:
+Moving a goal to `reached`, `missed` or `dropped`, or an effort to `done` or `dropped`. It's a review: each piece of **Open work** under the item is finished, dropped or moved first, and ztk names what is still open.
+_Avoid_: archiving, completing
+
 **Carried over**:
 An effort neither `done` nor `dropped` whose goal's quarter has ended; it moves on by pointing it at a goal of a later quarter, or by closing it.
 _Avoid_: stale, overdue

@@ -1,7 +1,5 @@
 package io.github.jabolina.ztk.cli.completers;
 
-import java.util.stream.Stream;
-
 import io.github.jabolina.ztk.planning.Effort;
 
 /**
@@ -19,9 +17,7 @@ public class EffortCompleter implements ZtkCompleter {
 
    @Override
    public void complete(ZtkCompleterInvocation invocation) {
-      try (Stream<Effort> efforts = invocation.context().plan().efforts()) {
-         invocation.offer(efforts.filter(this::offered).map(Effort::slug).toList());
-      }
+      invocation.offer(invocation.context().plan().efforts().filter(this::offered).map(Effort::slug).toList());
    }
 
    /**

@@ -1,7 +1,5 @@
 package io.github.jabolina.ztk.cli.completers;
 
-import java.util.stream.Stream;
-
 import io.github.jabolina.ztk.planning.Goal;
 import io.github.jabolina.ztk.planning.Period;
 
@@ -20,10 +18,7 @@ public class GoalCompleter implements ZtkCompleter {
 
    @Override
    public void complete(ZtkCompleterInvocation invocation) {
-      try (Stream<Goal> goals = invocation.context().plan().goals()) {
-         // Two files with one goal ID are both read, and offered once.
-         invocation.offer(goals.filter(this::offered).map(Goal::id).distinct().toList());
-      }
+      invocation.offer(invocation.context().plan().goals().filter(this::offered).map(Goal::id).toList());
    }
 
    /**

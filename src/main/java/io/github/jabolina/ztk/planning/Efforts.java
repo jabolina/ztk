@@ -15,6 +15,7 @@ import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import io.github.jabolina.ztk.ZtkException;
@@ -23,6 +24,7 @@ import io.github.jabolina.ztk.notes.KnowledgeBase;
 import io.github.jabolina.ztk.notes.NoteFiles;
 import io.github.jabolina.ztk.tasks.TaskNote;
 import io.github.jabolina.ztk.tasks.Tasks;
+import io.github.jabolina.ztk.taskwarrior.Status;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
 import io.github.jabolina.ztk.util.Frontmatter;
@@ -74,6 +76,9 @@ public final class Efforts {
          ## Outcome
          _When closed: what was delivered, its impact, links to the evidence. This feeds the quarterly retrospective._
          """;
+
+   // A task not created yet has no UUID; it never shows, as only the effort it would join is named.
+   private static final String NEW_TASK = "new-task";
 
    /**
     * What is known about an effort when creating it.
@@ -232,8 +237,11 @@ public final class Efforts {
    public Saved create(Details details) {
       String slug = checked(details.slug());
       unclaimed(slug);
-      String goal = goal(details.goal());
+      String goal = bare(details.goal());
       Path file = configuration.folders().efforts().resolve(slug + ".md");
+      Effort created = new Effort(slug, details.title(), Optional.of(EffortStatus.PLANNED), Optional.empty(),
+            Optional.of(goal), Optional.empty(), false, file);
+      refuseCreating(Plan.read(configuration, clock).added(created, List.of(), List.of()));
 
       SequencedMap<String, String> frontmatter = new LinkedHashMap<>();
       frontmatter.put("title", details.title());
@@ -258,17 +266,26 @@ public final class Efforts {
     * @return the effort's node ID and path.
     * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no effort has the slug.
     * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when the goal is not a quarterly goal, or is
-    *                      closed. Nothing is written.
+    *                      closed, or closing the effort would leave pending tasks in it. Nothing is written.
     * @throws UncheckedIOException when the effort or goals cannot be read, or the note cannot be written.
     */
    public Saved update(String slug, Changes changes) {
       Effort effort = notes.find(slug).orElseThrow(() -> ZtkException.notFound(unknown(slug)));
-      // Checked before writing: a refused change leaves the note as it was.
-      Optional<String> checkedGoal = changes.goal().map(this::goal);
+      Optional<String> goal = changes.goal().map(Efforts::bare);
+      Effort after = new Effort(effort.slug(), changes.title().orElse(effort.title()),
+            changes.status().or(effort::status), effort.closed(), goal.or(effort::goal), effort.quarter(),
+            effort.carriedOver(), effort.path());
+      // Only a new status can leave the effort's tasks under it closed.
+      List<Task> affected = changes.status().isPresent()
+            ? store.get().query(TaskStore.EFFORT_UDA + ".is:" + effort.slug())
+            : List.of();
+      // Checked before writing: a refused change leaves the note as it was. Its closed date, quarter and carrying
+      // over only matter to warnings and listings.
+      Plan.refuse(Plan.read(configuration, clock).added(after, affected, affected));
 
       Frontmatter.update(effort.path(), fields -> {
          changes.title().ifPresent(value -> fields.put("title", value));
-         checkedGoal.ifPresent(value -> fields.put("goal", value));
+         goal.ifPresent(value -> fields.put("goal", value));
          changes.status().ifPresent(value -> value.write(fields, effort.status(), LocalDate.now(clock)));
       });
       return new Saved(Effort.PREFIX + effort.slug(), effort.path());
@@ -332,8 +349,10 @@ public final class Efforts {
     */
    public TaskNote add(String slug, List<String> words) {
       Effort effort = notes.find(slug).orElseThrow(() -> ZtkException.validation(unknown(slug)));
-      // A new task is pending, so it is open work.
-      requireOpen(effort);
+      // The task as it would be: pending, in the effort. It has no number or UUID yet, and the refusal names neither.
+      Task planned = new Task(0, NEW_TASK, String.join(" ", words), Status.PENDING, Optional.empty(), List.of(), false,
+            Optional.empty(), Optional.empty(), Optional.of(effort.slug()));
+      refuseCreating(Plan.read(configuration, clock).added(effort, List.of(), List.of(planned)));
       List<String> joined = new ArrayList<>(words);
       joined.add(TaskStore.EFFORT_UDA + ":" + effort.slug());
       return tasks.get().add(joined);
@@ -355,10 +374,8 @@ public final class Efforts {
       TaskStore taskStore = store.get();
       // Every task is read and checked before the first one changes: all join, or none does.
       List<Task> found = references.stream().map(taskStore::get).toList();
-      // A completed task may join a closed effort: work done for it, recorded after the fact.
-      if (found.stream().anyMatch(Task::open)) {
-         requireOpen(effort);
-      }
+      List<Task> joined = found.stream().map(task -> task.withEffort(effort.slug())).toList();
+      Plan.refuse(Plan.read(configuration, clock).added(effort, found, joined));
       return change(found, TaskStore.EFFORT_UDA + ":" + effort.slug());
    }
 
@@ -395,17 +412,25 @@ public final class Efforts {
    }
 
    /**
-    * Ensures open work may join an effort.
+    * Refuses to create a new effort, or a new task in an effort, that would break the rules of the plan.
     *
-    * @param effort the effort.
-    * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when the effort is closed, naming how to reopen it.
+    * @param added the errors it would add.
+    * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when there is any, naming what to give instead.
     */
-   private static void requireOpen(Effort effort) {
-      // Strict: no open work goes under a closed effort.
-      if (effort.status().filter(EffortStatus::closed).isPresent()) {
-         throw ZtkException.validation("The effort " + effort.slug() + " is " + effort.status().orElseThrow().label()
-               + ", so no pending task joins it. Reopen it first with: ztk effort set " + effort.slug()
-               + " --status active");
+   private static void refuseCreating(List<PlanProblem> added) {
+      // The plan's own hints change what exists; what is not created yet is given another goal or effort instead.
+      if (!added.isEmpty()) {
+         throw ZtkException.validation(added.stream().map(problem -> switch (problem) {
+            case PlanProblem.UnknownGoal unknown -> "No quarterly goal " + unknown.named() + ". An effort moves one "
+                  + "quarterly goal forward, e.g. 2026-Q4-G1; list the goals with: ztk goal list";
+            case PlanProblem.OpenUnderClosed closed -> "The quarterly goal " + closed.parent().id() + " is "
+                  + closed.parent().status().orElseThrow().label() + ", so it takes no new efforts. Reopen it first "
+                  + "with: ztk goal set " + closed.parent().id() + " --status " + GoalStatus.OPEN.label();
+            case PlanProblem.OpenTaskUnderClosed closed -> "The effort " + closed.effort().slug() + " is "
+                  + closed.effort().status().orElseThrow().label() + ", so no pending task joins it. Reopen it first "
+                  + "with: ztk effort set " + closed.effort().slug() + " --status " + EffortStatus.ACTIVE.label();
+            default -> problem.message() + " " + problem.hint();
+         }).collect(Collectors.joining(" ")));
       }
    }
 
@@ -418,26 +443,12 @@ public final class Efforts {
    }
 
    /**
-    * Checks the goal given for an effort.
-    *
-    * @param id the goal ID, bare or as a node ID.
-    * @return the bare goal ID, as the frontmatter holds it.
-    * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when it is not a quarterly goal, or is closed.
-    * @throws UncheckedIOException when the goals cannot be read.
+    * @param goal a goal ID, bare or as a node ID, e.g. {@code 2026-Q4-G1} or {@code goal:2026-Q4-G1}.
+    * @return the bare goal ID, as an effort's {@code goal} holds it.
     */
-   private String goal(String id) {
-      // Efforts move quarterly goals forward; a yearly goal is reached through its quarterly goals.
-      Goal found = goals.find(id)
-            .filter(goal -> goal.period() instanceof Period.OfQuarter)
-            .orElseThrow(() -> ZtkException.validation("No quarterly goal " + id + ". An effort moves one quarterly "
-                  + "goal forward, e.g. 2026-Q4-G1; list the goals with: ztk goal list"));
-
-      // Strict: no open work goes under a closed goal.
-      if (found.status().filter(GoalStatus::closed).isPresent()) {
-         throw ZtkException.validation("The quarterly goal " + found.id() + " is " + found.status().orElseThrow().label()
-               + ", so it takes no new efforts. Reopen it first with: ztk goal set " + found.id() + " --status open");
-      }
-      return found.id();
+   private static String bare(String goal) {
+      // Accepted as JSON results print it, so an agent can feed it straight back.
+      return goal.startsWith(Goal.PREFIX) ? goal.substring(Goal.PREFIX.length()) : goal;
    }
 
    /**

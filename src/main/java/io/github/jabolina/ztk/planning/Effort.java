@@ -22,12 +22,22 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public record Effort(String slug, String title, Optional<EffortStatus> status, Optional<String> closed,
                      Optional<String> goal, Optional<Period.OfQuarter> quarter, boolean carriedOver,
-                     Path path) implements JsonWritable {
+                     Path path) implements PlanItem, JsonWritable {
 
    /**
     * How efforts are named in JSON results and the graph, e.g. {@code effort:infinijepsen-demo}; accepted as input too.
     */
    static final String PREFIX = "effort:";
+
+   @Override
+   public String nodeId() {
+      return PREFIX + slug;
+   }
+
+   @Override
+   public boolean open() {
+      return status.filter(value -> !value.closed()).isPresent();
+   }
 
    /**
     * Writes the effort's {@code id}, {@code title}, {@code status}, {@code closed}, {@code goal}, {@code quarter},

@@ -136,7 +136,7 @@ public final class Context {
     * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
     */
    public Plan plan() {
-      return new Plan(configuration(), Clock.systemDefaultZone());
+      return Plan.read(configuration(), Clock.systemDefaultZone());
    }
 
    /**

@@ -21,12 +21,22 @@ import tools.jackson.databind.node.ObjectNode;
  * @author José Bolina
  */
 public record Goal(String id, Period period, String title, Optional<GoalStatus> status, Optional<String> closed,
-                   Optional<String> parent, Path path, boolean needsClosing) implements JsonWritable {
+                   Optional<String> parent, Path path, boolean needsClosing) implements PlanItem, JsonWritable {
 
    /**
     * How goals are named in JSON results and the graph, e.g. {@code goal:2026-G1}; accepted as input too.
     */
    static final String PREFIX = "goal:";
+
+   @Override
+   public String nodeId() {
+      return PREFIX + id;
+   }
+
+   @Override
+   public boolean open() {
+      return status.filter(value -> !value.closed()).isPresent();
+   }
 
    /**
     * Writes the goal's {@code id}, {@code title}, {@code status}, {@code closed}, {@code parent}, {@code path} and

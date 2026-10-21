@@ -59,6 +59,14 @@ public record Task(
       return status == Status.PENDING || status == Status.WAITING;
    }
 
+   /**
+    * @param slug the slug of an effort, e.g. {@code infinijepsen-demo}.
+    * @return this task as it would be in that effort.
+    */
+   public Task withEffort(String slug) {
+      return new Task(id, uuid, description, status, project, tags, active, note, issue, Optional.of(slug));
+   }
+
    @Override
    public ObjectNode writeJson(ObjectNode target) {
       target.put("id", id);

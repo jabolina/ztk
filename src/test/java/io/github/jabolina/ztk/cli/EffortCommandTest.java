@@ -208,6 +208,40 @@ class EffortCommandTest {
    }
 
    @Test
+   void effortSetRefusesToCloseAnEffortWithPendingTasksListingEach() throws IOException {
+      Path effort = note("efforts/infinijepsen-demo.md", effort("active", "2026-Q4-G1", null));
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Fix bug", "project:Alpha", "effort:infinijepsen-demo");
+      String fixBug = taskwarrior.task("_get", "1.uuid");
+      // Waiting is still to do.
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Write demo", "project:Alpha", "effort:infinijepsen-demo",
+            "wait:2030-01-01");
+      String writeDemo = taskwarrior.task("_get", "2.uuid");
+      // Finished: it does not stand in the way.
+      taskwarrior.task("rc.uda.effort.type=string", "add", "Old bug", "project:Alpha", "effort:infinijepsen-demo");
+      taskwarrior.task("rc.confirmation=off", "3", "done");
+
+      // Any closed status: dropping an effort is a decision about its tasks too.
+      Result result = run("effort", "set", "infinijepsen-demo", "--status", "dropped");
+
+      // Closing is a review: each task still to do is named, with how to settle it.
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
+      assertThat(result.err())
+            .contains("Fix bug", "Write demo")
+            .contains("task " + fixBug.substring(0, 8) + " done")
+            .contains("ztk effort assign <slug> " + writeDemo)
+            .doesNotContain("Old bug");
+      assertThat(frontmatter(effort).path("status").asString()).isEqualTo("active");
+
+      // Once each is settled, it closes.
+      taskwarrior.task("rc.confirmation=off", fixBug, "done");
+      run("effort", "unassign", writeDemo);
+      Result settled = run("effort", "set", "infinijepsen-demo", "--status", "done");
+
+      assertThat(settled.exitCode()).as(settled.err()).isZero();
+      assertThat(frontmatter(effort).path("status").asString()).isEqualTo("done");
+   }
+
+   @Test
    void effortSetTitleChangesOnlyTheTitleAndAcceptsTheNodeId() throws IOException {
       Path effort = note("efforts/infinijepsen-demo.md", effort("active", "2026-Q4-G1", null));
 

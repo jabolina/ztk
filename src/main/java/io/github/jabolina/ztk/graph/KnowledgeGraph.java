@@ -17,8 +17,6 @@ import io.github.jabolina.ztk.notes.Note;
 import io.github.jabolina.ztk.notes.NoteWarning;
 import io.github.jabolina.ztk.notes.Wikilink;
 import io.github.jabolina.ztk.notes.Wikilinks;
-import io.github.jabolina.ztk.planning.Effort;
-import io.github.jabolina.ztk.planning.Goal;
 import io.github.jabolina.ztk.planning.Plan;
 import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
@@ -72,14 +70,8 @@ public final class KnowledgeGraph {
    private final Map<String, Node.OfTask> tasks = new HashMap<>();
    // The tasks whose note attribute names a file that is no note of the graph, done ones included.
    private final List<Node.OfTask> missingNotes = new ArrayList<>();
-   // Every goal file, by goal ID: the first read is the goal, any other is a duplicate. A goal or effort stands for
-   // its own note, whose node it replaces.
-   private final Map<String, List<Node.OfGoal>> goals = new HashMap<>();
-   // Every effort, by slug.
-   private final Map<String, Node.OfEffort> efforts = new HashMap<>();
-   // The notes sitting where goals do, but not named after a goal ID of their folder.
-   private final List<Note> misnamed = new ArrayList<>();
-
+   // Every goal and effort. A goal or effort stands for its own note, whose node it replaces.
+   private final Plan plan;
 
    // To find the note a task's note attribute names, which is relative to the knowledge base.
    private final KnowledgeBase knowledgeBase;
@@ -88,9 +80,10 @@ public final class KnowledgeGraph {
    // Shared by every part of the read, which is sequential, a plain list is fine.
    private final List<NoteWarning> skipped;
 
-   private KnowledgeGraph(KnowledgeBase knowledgeBase, List<NoteWarning> skipped) {
+   private KnowledgeGraph(KnowledgeBase knowledgeBase, List<NoteWarning> skipped, Plan plan) {
       this.knowledgeBase = knowledgeBase;
       this.skipped = skipped;
+      this.plan = plan;
    }
 
    /**
@@ -126,19 +119,8 @@ public final class KnowledgeGraph {
       KnowledgeGraph graph;
       try (Stream<NoteLinks> notes = knowledgeBase.read((note, lines) ->
             Optional.of(new NoteLinks(note, Wikilinks.links(lines).toList())), skipped::add)) {
-         graph = notes.collect(() -> new KnowledgeGraph(knowledgeBase, skipped), KnowledgeGraph::add,
+         graph = notes.collect(() -> new KnowledgeGraph(knowledgeBase, skipped, plan), KnowledgeGraph::add,
                KnowledgeGraph::merge);
-      }
-
-      // Each read once, straight into the graph's own indexes.
-      try (Stream<Goal> goals = plan.goals();
-           Stream<Effort> efforts = plan.efforts();
-           Stream<Path> misnamed = plan.misnamed()) {
-         goals.forEach(goal -> graph.goals.computeIfAbsent(goal.id(), ignore -> new ArrayList<>())
-               .add(new Node.OfGoal(goal)));
-         efforts.forEach(effort -> graph.efforts.put(effort.slug(), new Node.OfEffort(effort)));
-         // Read as plain notes; one the knowledge base skipped is already an unreadable note.
-         misnamed.flatMap(path -> graph.note(path).stream()).forEach(graph.misnamed::add);
       }
 
       // One export for every task, done ones included.
@@ -318,50 +300,22 @@ public final class KnowledgeGraph {
     * @return the note read from that file; empty when there is no such file, or it could not be read.
     */
    private Optional<Note> noteAt(String attribute) {
-      return note(knowledgeBase.resolve(attribute));
+      return Optional.ofNullable(byPath.get(knowledgeBase.resolve(attribute)));
    }
 
    /**
-    * Finds the note read from a file.
-    *
-    * @param path the file's absolute path.
-    * @return its note; empty when it is no note of the graph, e.g. because it could not be read.
+    * @return every goal and effort, with the rules they must keep.
     */
-   Optional<Note> note(Path path) {
-      return Optional.ofNullable(byPath.get(path));
+   Plan plan() {
+      return plan;
    }
 
    /**
-    * @return every goal, one per file: two files with one goal ID are both there.
+    * @param uuid a task's full UUID.
+    * @return the task; empty when no task of the graph has it, e.g. a deleted one.
     */
-   Stream<Node.OfGoal> goals() {
-      return goals.values().stream().flatMap(List::stream);
-   }
-
-   /**
-    * Finds the files of a goal ID.
-    *
-    * @param id the bare goal ID, e.g. {@code 2026-Q4-G1}.
-    * @return the goals with that ID, the first read being the graph's node and any other a duplicate; empty when no
-    *         goal has it. Not to be changed.
-    */
-   List<Node.OfGoal> goals(String id) {
-      return goals.getOrDefault(id, List.of());
-   }
-
-   /**
-    * @return every effort.
-    */
-   Stream<Node.OfEffort> efforts() {
-      return efforts.values().stream();
-   }
-
-   /**
-    * @return the notes sitting where goals do, directly in a year's or a quarter's folder, but not named after a goal
-    *         ID of that folder.
-    */
-   Stream<Note> misnamed() {
-      return misnamed.stream();
+   Optional<Node.OfTask> task(String uuid) {
+      return Optional.ofNullable(tasks.get(uuid));
    }
 
    /**
@@ -533,7 +487,7 @@ public final class KnowledgeGraph {
    private Stream<Edge> goalEdges(Node.Planned node) {
       return Stream.concat(
             up(node).map(goal -> new Edge(node, goal, "goal", "out")).stream(),
-            Stream.<Node.Planned>concat(goals.values().stream().map(List::getFirst), efforts.values().stream())
+            Stream.<Node.Planned>concat(plan.goals().map(Node.OfGoal::new), plan.efforts().map(Node.OfEffort::new))
                   .filter(other -> up(other).equals(Optional.of(node)))
                   .map(other -> new Edge(node, other, "goal", "in")));
    }
@@ -583,7 +537,7 @@ public final class KnowledgeGraph {
     * @return the goal; empty when none has the ID. Of two files with one ID, the first read; check reports both.
     */
    private Optional<Node> goal(String id) {
-      return Optional.ofNullable(goals.get(id)).<Node>map(List::getFirst);
+      return plan.goal(id).<Node>map(Node.OfGoal::new);
    }
 
    /**
@@ -592,8 +546,8 @@ public final class KnowledgeGraph {
     * @param slug the effort's slug, e.g. {@code infinijepsen-demo}.
     * @return the effort; empty when none has the slug.
     */
-   Optional<Node.OfEffort> effort(String slug) {
-      return Optional.ofNullable(efforts.get(slug));
+   private Optional<Node.OfEffort> effort(String slug) {
+      return plan.effort(slug).map(Node.OfEffort::new);
    }
 
    /**

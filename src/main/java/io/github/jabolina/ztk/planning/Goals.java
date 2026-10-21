@@ -237,18 +237,27 @@ public final class Goals {
    public Saved create(Details details) {
       Period period = details.period();
       String name = details.slug().map(Goals::checked).orElseGet(() -> derived(details.title()));
-      Optional<String> checkedParent = details.parent().map(given -> parent(period, given));
-      if (period instanceof Period.OfQuarter quarter && checkedParent.isEmpty()) {
+      details.parent().ifPresent(given -> requireQuarter(period));
+      if (period instanceof Period.OfQuarter quarter && details.parent().isEmpty()) {
          throw ZtkException.usage("A quarterly goal moves a yearly goal forward: name it with --parent. " + choices(quarter.ofYear()));
       }
       String prefix = period + "-G";
       String id = prefix + next(period, prefix);
       Path file = period.folder(configuration.folders().goals()).resolve(id + "-" + name + ".md");
+      Goal created = new Goal(id, period, details.title(), Optional.of(GoalStatus.OPEN), Optional.empty(),
+            details.parent(), file, false);
+      // Only a quarterly goal's parent can break a rule; the refusal names the goals it could have instead.
+      List<PlanProblem> added = Plan.read(configuration, clock).added(created, List.of(), List.of());
+      if (!added.isEmpty()) {
+         throw ZtkException.validation("Not created: " + added.stream()
+               .map(problem -> refusal(problem, period.ofYear()))
+               .collect(Collectors.joining(" ")));
+      }
 
       SequencedMap<String, String> frontmatter = new LinkedHashMap<>();
       frontmatter.put("title", details.title());
       frontmatter.put("status", GoalStatus.OPEN.label());
-      checkedParent.ifPresent(value -> frontmatter.put("parent", value));
+      details.parent().ifPresent(value -> frontmatter.put("parent", value));
       frontmatter.put("date", Frontmatter.timestamp(OffsetDateTime.now(clock)));
       String template = switch (period) {
          case Period.OfYear _ -> YEARLY_TEMPLATE;
@@ -272,17 +281,24 @@ public final class Goals {
     * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no goal has the ID.
     * @throws ZtkException with {@link ZtkException.Kind#USAGE} when a parent is given for a yearly goal.
     * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when the parent is not a yearly goal of the same
-    *                      year, or is closed. Nothing is written.
+    *                      year, or is closed, or closing the goal would leave open goals or efforts under it. Nothing
+    *                      is written.
     * @throws UncheckedIOException when the goals cannot be read or the note cannot be written.
     */
    public Saved update(String id, Changes changes) {
       Goal goal = find(id);
-      // Checked before writing: a refused change leaves the note as it was.
-      Optional<String> checkedParent = changes.parent().map(given -> parent(goal.period(), given));
+      changes.parent().ifPresent(given -> requireQuarter(goal.period()));
+      Goal after = new Goal(goal.id(), goal.period(), changes.title().orElse(goal.title()),
+            changes.status().or(goal::status), goal.closed(), changes.parent().or(goal::parent), goal.path(),
+            goal.needsClosing());
+      // Checked before writing: a refused change leaves the note as it was. Its closed date and whether it needs
+      // closing only matter to warnings, which never stand in the way. A goal has no tasks of its own: its open work
+      // is goals and efforts.
+      Plan.refuse(Plan.read(configuration, clock).added(after, List.of(), List.of()));
 
       Frontmatter.update(goal.path(), fields -> {
          changes.title().ifPresent(value -> fields.put("title", value));
-         checkedParent.ifPresent(value -> fields.put("parent", value));
+         changes.parent().ifPresent(value -> fields.put("parent", value));
          changes.status().ifPresent(value -> value.write(fields, goal.status(), LocalDate.now(clock)));
       });
       return new Saved(Goal.PREFIX + goal.id(), goal.path());
@@ -413,34 +429,34 @@ public final class Goals {
    }
 
    /**
-    * Checks the parent given for a goal.
+    * Ensures a goal of a period may name a parent, as the command line gives it.
     *
     * @param period the period of the goal.
-    * @param id the ID of the yearly goal given as its parent.
-    * @return {@code id}, unchanged.
     * @throws ZtkException with {@link ZtkException.Kind#USAGE} when the goal is a yearly goal, which has no parent.
-    * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when the parent is not a yearly goal of the same
-    *                      year, or is closed.
     */
-   private String parent(Period period, String id) {
-      if (!(period instanceof Period.OfQuarter quarter)) {
+   private static void requireQuarter(Period period) {
+      if (period instanceof Period.OfYear) {
          throw ZtkException.usage("A yearly goal has no parent. Run the same command without --parent.");
       }
-      // Same year only: a quarterly goal is a step toward a goal of its own year.
-      Period.OfYear year = quarter.ofYear();
-      Goal found;
-      try (Stream<Goal> goals = notes.of(year)) {
-         found = goals.filter(goal -> goal.id().equals(id))
-               .findFirst()
-               .orElseThrow(() -> ZtkException.validation("No yearly goal " + id + " in " + year + ". " + choices(year)));
-      }
+   }
 
-      // Strict: no open work goes under a closed goal.
-      if (found.status().filter(GoalStatus::closed).isPresent()) {
-         throw ZtkException.validation("The yearly goal " + id + " is " + found.status().orElseThrow().label()
-               + ", so it takes no new goals. Reopen it first with: ztk goal set " + id + " --status open");
-      }
-      return id;
+   /**
+    * Words a rule a new goal would break, as a reason not to create it.
+    *
+    * @param problem the error the new goal would add.
+    * @param year the year of the new goal.
+    * @return why the goal is not created, and what to give instead.
+    * @throws UncheckedIOException when the goals cannot be read.
+    */
+   private String refusal(PlanProblem problem, Period.OfYear year) {
+      // The plan's own hints change an existing goal; a goal not created yet is given another parent instead.
+      return switch (problem) {
+         case PlanProblem.UnknownGoal unknown -> "No yearly goal " + unknown.named() + " in " + year + ". " + choices(year);
+         case PlanProblem.OpenUnderClosed closed -> "The yearly goal " + closed.parent().id() + " is "
+               + closed.parent().status().orElseThrow().label() + ", so it takes no new goals. Reopen it first with: "
+               + "ztk goal set " + closed.parent().id() + " --status " + GoalStatus.OPEN.label();
+         default -> problem.message() + " " + problem.hint();
+      };
    }
 
    /**

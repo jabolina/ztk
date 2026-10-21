@@ -305,6 +305,54 @@ class GoalCommandTest {
    }
 
    @Test
+   void goalSetRefusesToCloseAGoalWithOpenGoalsUnderItListingEach() throws IOException {
+      Path yearly = goal("2026/2026-G1-provably-correct.md", goalOf("open", null));
+      goal("2026/Q4/2026-Q4-G1-fix-bugs.md", goalOf("open", "2026-G1"));
+      goal("2026/Q4/2026-Q4-G2-write-docs.md", goalOf("open", "2026-G1"));
+      // Settled already: it does not stand in the way.
+      goal("2026/Q3/2026-Q3-G1-tests.md", goalOf("missed", "2026-G1"));
+
+      // Any closed status: dropping a goal is a decision about its goals too.
+      Result result = run("goal", "set", "2026-G1", "--status", "dropped");
+
+      // Closing is a review: each open goal under it is named, with how to settle it.
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
+      assertThat(result.err())
+            .contains("2026-Q4-G1", "2026-Q4-G2")
+            .contains("ztk goal set 2026-Q4-G1 --status <reached|missed|dropped>")
+            .contains("ztk goal set 2026-Q4-G2 --parent <goal ID>")
+            .doesNotContain("2026-Q3-G1");
+      assertThat(frontmatter(yearly).path("status").asString()).isEqualTo("open");
+
+      // Once each is settled, it closes.
+      run("goal", "set", "2026-Q4-G1", "--status", "reached");
+      run("goal", "set", "2026-Q4-G2", "--status", "dropped");
+      Result settled = run("goal", "set", "2026-G1", "--status", "reached");
+
+      assertThat(settled.exitCode()).as(settled.err()).isZero();
+      assertThat(frontmatter(yearly).path("status").asString()).isEqualTo("reached");
+   }
+
+   @Test
+   void goalSetRefusesToCloseAQuarterlyGoalWithOpenEffortsListingEach() throws IOException {
+      goal("2026/2026-G1-provably-correct.md", goalOf("open", null));
+      Path quarterly = goal("2026/Q4/2026-Q4-G1-fix-bugs.md", goalOf("open", "2026-G1"));
+      effort("write-the-guide", "active", "2026-Q4-G1");
+      effort("next-demo", "planned", "2026-Q4-G1");
+      effort("old-demo", "done", "2026-Q4-G1");
+
+      Result result = run("goal", "set", "2026-Q4-G1", "--status", "reached");
+
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
+      assertThat(result.err())
+            .contains("write-the-guide", "next-demo")
+            .contains("ztk effort set write-the-guide --status <done|dropped>")
+            .contains("ztk effort set next-demo --goal <goal ID>")
+            .doesNotContain("old-demo");
+      assertThat(frontmatter(quarterly).path("status").asString()).isEqualTo("open");
+   }
+
+   @Test
    void goalSetTitleChangesOnlyTheTitleAndAcceptsTheNodeId() throws IOException {
       Path goal = Path.of(run("goal", "new", "2026", "--title", "Provably correct", "--human").out().strip());
 
@@ -348,7 +396,8 @@ class GoalCommandTest {
       assertThat(closed.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
       assertThat(closed.err()).contains("ztk goal set 2026-G2 --status open");
       assertThat(unknown.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
-      assertThat(unknown.err()).contains("2026-G1");
+      // As check reports it: how to point it at a yearly goal of its year, and where to find them.
+      assertThat(unknown.err()).contains("2026-G9", "ztk goal set 2026-Q4-G1 --parent <goal ID>", "ztk goal list 2026");
       assertThat(yearly.exitCode()).isEqualTo(ZtkException.Kind.USAGE.exitCode());
       assertThat(yearly.err()).contains("without --parent");
       // A refused change leaves the note as it was.
@@ -728,6 +777,22 @@ class GoalCommandTest {
 
             ## Summary
             """.formatted(title);
+   }
+
+   /**
+    * @param status the goal's status, e.g. {@code open}; a closed one is dated 2026-09-30.
+    * @param parent the yearly goal of a quarterly goal; {@code null} for a yearly goal.
+    * @return a goal note, as {@code goal new} and {@code goal set} leave it.
+    */
+   private static String goalOf(String status, String parent) {
+      return """
+            ---
+            title: A goal
+            status: %s
+            %s%sdate: 2026-01-05T09:00:00+01:00
+            ---
+            """.formatted(status, status.equals("open") ? "" : "closed: 2026-09-30\n",
+            parent == null ? "" : "parent: " + parent + "\n");
    }
 
    private Result run(String... args) {

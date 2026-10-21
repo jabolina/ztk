@@ -55,7 +55,7 @@ public final class CheckCommand implements Command<ZtkInvocation> {
 
    @OptionList(name = "code", allowedValues = { "dangling-link", "missing-note", "task-without-project", "ambiguous-link",
          "orphan-task-note", "unreadable-note", "unknown-effort", "missing-goal", "unknown-goal", "invalid-status",
-         "invalid-goal-name", "duplicate-goal", "needs-closing", "closed-mismatch", "open-task-in-closed-effort" },
+         "invalid-goal-name", "duplicate-goal", "needs-closing", "closed-mismatch", "open-under-closed" },
          description = "Only report problems with these codes, comma-separated")
    List<String> codes;
 

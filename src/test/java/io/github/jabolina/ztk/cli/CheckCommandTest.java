@@ -303,8 +303,7 @@ class CheckCommandTest {
       assertThat(result.err()).contains("'dangling'")
             .contains("dangling-link", "missing-note", "task-without-project", "ambiguous-link", "orphan-task-note",
                   "unreadable-note", "unknown-effort", "missing-goal", "unknown-goal", "invalid-status",
-                  "invalid-goal-name", "duplicate-goal", "needs-closing", "closed-mismatch",
-                  "open-task-in-closed-effort");
+                  "invalid-goal-name", "duplicate-goal", "needs-closing", "closed-mismatch", "open-under-closed");
    }
 
    @Test
@@ -521,9 +520,14 @@ class CheckCommandTest {
    }
 
    @Test
-   void anOpenTaskInAClosedEffortIsAWarning() throws IOException {
-      note("goals/2026/2026-G1-provably-correct.md", goal("open", null));
+   void openWorkUnderAClosedGoalOrEffortIsAnOpenUnderClosedErrorAtEveryLevel() throws IOException {
+      note("goals/2026/2026-G1-provably-correct.md", closed("reached", null));
+      // Open under a reached yearly goal.
       note("goals/2026/Q4/2026-Q4-G1-fix-the-bugs.md", goal("open", "2026-G1"));
+      // Closed under a closed goal: as it should be.
+      note("goals/2026/Q4/2026-Q4-G2-write-docs.md", closed("missed", "2026-G1"));
+      // Active under a missed quarterly goal.
+      note("efforts/write-the-guide.md", effort("2026-Q4-G2"));
       note("efforts/infinijepsen-demo.md", """
             ---
             title: InfiniJepsen demo
@@ -539,19 +543,42 @@ class CheckCommandTest {
       taskwarrior.task("rc.uda.effort.type=string", "add", "Old bug", "project:Alpha", "effort:infinijepsen-demo");
       taskwarrior.task("rc.confirmation=off", "2", "done");
 
-      Result result = CliHarness.run(taskwarrior.environment(), false, "check");
+      Result result = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "open-under-closed");
 
-      // A warning: the work may be finished, moved, or the effort reopened.
-      assertThat(result.exitCode()).isZero();
+      // ztk never lets open work under something closed, so finding some is an error.
+      assertThat(result.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode());
       JsonNode problems = JSON.readTree(result.out()).path("problems");
-      assertThat(codes(problems)).containsExactly("open-task-in-closed-effort task:" + fixBug);
-      JsonNode problem = problems.get(0);
-      assertThat(problem.path("severity").asString()).isEqualTo("warning");
-      assertThat(problem.path("message").asString()).contains("Fix bug").contains("infinijepsen-demo").contains("done");
-      assertThat(problem.path("hint").asString())
+      // One problem per open child, found in the child: it is what gets closed, moved, or reopened over.
+      assertThat(codes(problems)).containsExactlyInAnyOrder("open-under-closed goal:2026-Q4-G1",
+            "open-under-closed effort:write-the-guide", "open-under-closed task:" + fixBug);
+
+      JsonNode quarterly = problem(problems, "goal:2026-Q4-G1");
+      assertThat(quarterly.path("severity").asString()).isEqualTo("error");
+      assertThat(quarterly.path("message").asString()).contains("2026-G1").contains("reached");
+      assertThat(quarterly.path("hint").asString())
+            .contains("ztk goal set 2026-Q4-G1 --status <reached|missed|dropped>")
+            .contains("ztk goal set 2026-Q4-G1 --parent <goal ID>")
+            .contains("ztk goal set 2026-G1 --status open");
+
+      JsonNode effort = problem(problems, "effort:write-the-guide");
+      assertThat(effort.path("message").asString()).contains("2026-Q4-G2").contains("missed");
+      assertThat(effort.path("hint").asString())
+            .contains("ztk effort set write-the-guide --status <done|dropped>")
+            .contains("ztk effort set write-the-guide --goal <goal ID>")
+            .contains("ztk goal set 2026-Q4-G2 --status open");
+
+      JsonNode task = problem(problems, "task:" + fixBug);
+      assertThat(task.path("message").asString()).contains("Fix bug").contains("infinijepsen-demo").contains("done");
+      assertThat(task.path("hint").asString())
             .contains("task " + fixBug.substring(0, 8) + " done")
             .contains("ztk effort assign <slug> " + fixBug)
             .contains("ztk effort set infinijepsen-demo --status active");
+
+      // A task's problem still belongs to the task's project.
+      Result beta = CliHarness.run(taskwarrior.environment(), false, "check", "--code", "open-under-closed",
+            "--project", "Alpha");
+
+      assertThat(codes(JSON.readTree(beta.out()).path("problems"))).contains("open-under-closed task:" + fixBug);
    }
 
    @Test
@@ -628,6 +655,22 @@ class CheckCommandTest {
             ---
             title: A goal
             status: %s
+            %sdate: 2026-01-05T09:00:00+01:00
+            ---
+            """.formatted(status, parent == null ? "" : "parent: " + parent + "\n");
+   }
+
+   /**
+    * @param status the goal's closed status, e.g. {@code reached}.
+    * @param parent the yearly goal of a quarterly goal; {@code null} for none.
+    * @return a closed goal note, dated as {@code goal set} leaves it.
+    */
+   private static String closed(String status, String parent) {
+      return """
+            ---
+            title: A goal
+            status: %s
+            closed: 2026-10-01
             %sdate: 2026-01-05T09:00:00+01:00
             ---
             """.formatted(status, parent == null ? "" : "parent: " + parent + "\n");

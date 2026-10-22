@@ -84,7 +84,7 @@ _Avoid_: unplanned work, misc
 ### Sessions and summaries
 
 **Session**:
-A short record of one work session on a task (what was done, where things are, what is next), written by an agent at the session's end as a refresher for the next agent.
+A short record of one work session on one **Task** (what was done, where things are, what is next), written by an agent at the session's end as a refresher for the next agent. Always of one named task, active or not; work worth a session but with no task gets one first.
 _Avoid_: progress entry
 
 **Journal**:
@@ -92,8 +92,12 @@ The daily files holding sessions, one file per day.
 _Avoid_: progress file
 
 **Summary**:
-A report for a week, quarter or year: facts gathered by ztk, optionally expanded into a narrative by an agent, and saved as a file.
+A report for a week, quarter or year: facts gathered by ztk by fixed rules, expanded into a narrative by an agent, and saved once as a file. A week's is the weekly review, of the week just ended; a quarter's or a year's is the **Retrospective** of its goals, written once they are closed.
 _Avoid_: weekly status, report file
+
+**Retrospective**:
+The review at the end of a quarter or year: each of its goals is closed, its carried-over efforts settled, and the reasoning written as the narrative of that period's **Summary**. A goal's own note holds what was aimed for; the summary holds what happened.
+_Avoid_: post-mortem, goal review
 
 ### Graph
 

@@ -10,7 +10,7 @@
 
 ## Where we left off (2026-10-21, Phase 3 done)
 
-The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. All four tasks are done: goals (`goal new|set|list|info`), efforts and their tasks (`effort new|set|list|info|assign|unassign`, `add --effort`), graph and check (`goal`/`effort` nodes and edges, the nine planning codes), and completion with the native smoke test. The end-of-phase review then did #2 (below). Next: the small review items left (`checked(slug)`, GraalVM build options), then Phase 4.
+The design was settled in an interview on 2026-10-20 and written into the spec and `CONTEXT.md`. All four tasks are done: goals (`goal new|set|list|info`), efforts and their tasks (`effort new|set|list|info|assign|unassign`, `add --effort`), graph and check (`goal`/`effort` nodes and edges, the nine planning codes), and completion with the native smoke test. The end-of-phase review then did #2 (below). The review is closed. Next: Phase 4.
 
 End-of-phase review (started 2026-10-21): the user judges the architecture crooked from the start (organized around how things are read, with no joined model of the knowledge base, so `graph` became where everything meets). Agreed: only #2 now, one model of the plan's rules used both to refuse changes and to report problems, as the rules are written twice and already differ. Dropped: notes, tasks and planning contributing to the graph through a seam (moves code, adds indirection). Deferred to a project-wide redesign once every phase has landed and the CLI tests cover it all: one read of every note typed by its owner, and the joined model itself.
 
@@ -37,7 +37,7 @@ How Task 3 joined planning to the graph:
 
 What Task 4 builds on: `--kind`/`--edges`/`check --code` already list the new values as fixed lists; `graph` start nodes accept `goal:<id>`, a bare goal ID, `effort:<slug>` and an effort's bare slug.
 - Taskwarrior: `effort:x` filters by prefix (use `effort.is:`); `modify effort:` clears it; abbreviations down to `ef:` set it.
-- Left as small duplicates for the end-of-phase review: `checked(slug)` in `Goals`/`Efforts` (different hints). The status parsers in `GoalCommand`/`EffortCommand` shrank to one line each once Æsh validated `--status` (Task 4).
+- `checked(slug)` stays in both `Goals` and `Efforts`: the hints differ with how the slug is given (`--slug` or an argument), and merging them would put command-line wording in `util` to save a few lines. The status parsers in `GoalCommand`/`EffortCommand` shrank to one line each once Æsh validated `--status` (Task 4).
 How Task 4 completes the plan:
 
 - `cli.completers.GoalCompleter` (every goal; nested `Yearly`/`Quarterly`: open goals of that level) and `EffortCompleter` (every effort; nested `Open`) read through `Context.plan()`. Closed items are offered where they can still be shown or reopened, only open ones where new work goes under them.
@@ -46,7 +46,6 @@ How Task 4 completes the plan:
 - Native smoke test (2026-10-21): completion of goals and efforts 6 ms, `goal list` 6 ms, `effort info` 15 ms, `graph` from a goal 44 ms.
 
 - For the end-of-phase review (raised at the start of Task 3): `notes` and `planning` each know their own items, yet `graph` must know every kind (node variants, edges, check rules), so planning knowledge leaks into it. Task 3 took the direct route; the review dropped the seam and moved only the planning rules into `planning` (#2).
-- For the end-of-phase review (raised after Task 4): the native image is built without GraalVM's suggested optimisations (e.g. `-O3`, `-march=native`, profile-guided optimisation); every target is met with a wide margin, so weigh build time and portability against the gain.
 
 **Working agreement:** TDD; Claude writes tests and snippets, the user writes production code and runs the tests. Tasks are large: inside one, walk in larger strides (several behaviors per step when they are mechanical). Commit once a whole task is done. Verify Æsh/Taskwarrior behavior in the scratchpad, never against real data. Real notes in `~/cerebro` are only read, never written; nothing about this work goes there.
 

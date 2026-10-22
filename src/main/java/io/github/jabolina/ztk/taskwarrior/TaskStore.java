@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -395,14 +396,24 @@ public final class TaskStore {
             Status.parse(node.path("status").asString()),
             node.optional("project").map(JsonNode::asString),
             List.copyOf(tags),
-            // Taskwarrior only exports "start" while the task is started, stopping it removes the field.
-            node.has("start"),
             node.optional(NOTE_UDA).map(JsonNode::asString),
             // The user's own attribute: read when present, never defined by ztk.
             node.optional("issue").map(JsonNode::asString),
             node.optional(EFFORT_UDA).map(JsonNode::asString),
-            // Taskwarrior sets it on every task it creates.
-            OffsetDateTime.parse(node.path("entry").asString(), DATE).toInstant());
+            // Taskwarrior sets both on every task it creates.
+            instant(node.path("entry")),
+            instant(node.path("modified")),
+            // Taskwarrior only exports "start" while the task is started, stopping it removes the field.
+            node.optional("start").map(TaskStore::instant),
+            node.optional("end").map(TaskStore::instant));
+   }
+
+   /**
+    * @param date a date as Taskwarrior exports it, e.g. {@code 20261001T030000Z}.
+    * @return the instant it names.
+    */
+   private static Instant instant(JsonNode date) {
+      return OffsetDateTime.parse(date.asString(), DATE).toInstant();
    }
 
    /**

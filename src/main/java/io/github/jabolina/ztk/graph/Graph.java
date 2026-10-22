@@ -19,8 +19,8 @@ import io.github.jabolina.ztk.notes.NoteType;
  */
 public final class Graph {
 
-   // Notes ztk writes about many tasks at once: walking through them would join work related only by its day.
-   private static final EnumSet<NoteType> GENERATED = EnumSet.of(NoteType.JOURNAL);
+   // Notes ztk writes about many tasks at once: walking through them would join work related only by its day or period.
+   private static final EnumSet<NoteType> GENERATED = EnumSet.of(NoteType.JOURNAL, NoteType.SUMMARY);
 
    private final KnowledgeGraph graph;
 

@@ -17,11 +17,13 @@ import tools.jackson.databind.node.ObjectNode;
  * @param status      The Taskwarrior status, e.g. {@code pending} or {@code completed}.
  * @param project     The project the task belongs to, if any.
  * @param tags        The task tags, without the leading {@code +}.
- * @param active      Whether the task is started, i.e., currently being worked on.
  * @param note        The path of the task's note, relative to the knowledge base, if one was created.
  * @param issue       The external issue the task tracks, e.g. {@code GH-1}, from the user's {@code issue} attribute.
  * @param effort      The slug of the effort the task belongs to, from ztk's {@code effort} attribute; empty for general work.
  * @param entry       When the task was created.
+ * @param modified    When the task was last changed, by any change, an annotation included.
+ * @param started     When the task was started, while it is being worked on.
+ * @param end         When the task was completed or deleted.
  */
 public record Task(
       int id,
@@ -30,11 +32,13 @@ public record Task(
       Status status,
       Optional<String> project,
       List<String> tags,
-      boolean active,
       Optional<String> note,
       Optional<String> issue,
       Optional<String> effort,
-      Instant entry
+      Instant entry,
+      Instant modified,
+      Optional<Instant> started,
+      Optional<Instant> end
 ) implements JsonWritable {
 
    /**
@@ -63,11 +67,19 @@ public record Task(
    }
 
    /**
+    * @return whether the task is started, i.e., currently being worked on.
+    */
+   public boolean active() {
+      return started.isPresent();
+   }
+
+   /**
     * @param slug the slug of an effort, e.g. {@code infinijepsen-demo}.
     * @return this task as it would be in that effort.
     */
    public Task withEffort(String slug) {
-      return new Task(id, uuid, description, status, project, tags, active, note, issue, Optional.of(slug), entry);
+      return new Task(id, uuid, description, status, project, tags, note, issue, Optional.of(slug), entry, modified,
+            started, end);
    }
 
    @Override
@@ -83,7 +95,7 @@ public record Task(
       for (String tag : tags) {
          array.add(tag);
       }
-      target.put("active", active);
+      target.put("active", active());
       target.put("issue", issue.orElse(null));
       // Null for general work, so every task has the same fields.
       target.put("effort", effort.orElse(null));

@@ -791,6 +791,62 @@ class GraphCommandTest {
             .isEqualTo("journal");
    }
 
+   @Test
+   void graphNeverListsNorWalksThroughSummaryNotes() throws IOException {
+      note("zettel/20261015-causality.md", """
+            ---
+            title: Causality
+            ---
+
+            Ordering events.
+            """);
+      note("zettel/20261016-clocks.md", """
+            ---
+            title: Clocks
+            ---
+
+            Lamport clocks.
+            """);
+      // Links both: the only way from one to the other.
+      note("summaries/2026-W41.md", """
+            ---
+            title: Week 2026-W41
+            ---
+
+            - [[20261015-causality|Causality]]
+            - [[20261016-clocks|Clocks]]
+            """);
+
+      List<String> ids = ids(CliHarness.run(taskwarrior.environment(), false, "graph", "note:zettel/20261015-causality",
+            "--depth", "3"));
+
+      assertThat(ids).containsExactly("note:zettel/20261015-causality");
+   }
+
+   @Test
+   void graphStartingAtASummaryNoteListsWhatItLinksTo() throws IOException {
+      note("zettel/20261015-causality.md", """
+            ---
+            title: Causality
+            ---
+
+            Ordering events.
+            """);
+      note("summaries/2026-W41.md", """
+            ---
+            title: Week 2026-W41
+            ---
+
+            - [[20261015-causality|Causality]]
+            """);
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "graph", "note:summaries/2026-W41", "--depth", "1");
+
+      assertThat(ids(result)).containsExactlyInAnyOrder("note:summaries/2026-W41", "note:zettel/20261015-causality");
+      assertThat(node(JSON.readTree(result.out()).path("nodes"), "note:summaries/2026-W41").path("type").asString())
+            .isEqualTo("summary");
+   }
+
    /**
     * Finds a node in a graph run's output.
     *

@@ -45,6 +45,11 @@ public enum NoteType implements Labeled {
    JOURNAL,
 
    /**
+    * The facts of a week, quarter or year and their narrative: a note in the summaries folder, written by ztk.
+    */
+   SUMMARY,
+
+   /**
     * A note in no folder ztk gives a meaning to, e.g. at the root of the knowledge base, or material kept next to a
     * goal or an effort.
     */

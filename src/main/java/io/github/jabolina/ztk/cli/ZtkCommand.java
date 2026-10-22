@@ -22,6 +22,7 @@ import io.github.jabolina.ztk.cli.commands.SearchCommand;
 import io.github.jabolina.ztk.cli.commands.SessionCommand;
 import io.github.jabolina.ztk.cli.commands.StartCommand;
 import io.github.jabolina.ztk.cli.commands.StopCommand;
+import io.github.jabolina.ztk.cli.commands.SummaryCommand;
 import io.github.jabolina.ztk.cli.commands.WeekCommand;
 
 /**
@@ -47,6 +48,7 @@ import io.github.jabolina.ztk.cli.commands.WeekCommand;
             GoalCommand.class,
             EffortCommand.class,
             SessionCommand.class,
+            SummaryCommand.class,
 })
 public class ZtkCommand implements Command<ZtkInvocation> {
 

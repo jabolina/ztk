@@ -15,6 +15,7 @@ import io.github.jabolina.ztk.planning.Efforts;
 import io.github.jabolina.ztk.planning.Goals;
 import io.github.jabolina.ztk.planning.Levels;
 import io.github.jabolina.ztk.planning.Plan;
+import io.github.jabolina.ztk.reports.Summaries;
 import io.github.jabolina.ztk.search.Search;
 import io.github.jabolina.ztk.tasks.Tasks;
 import io.github.jabolina.ztk.taskwarrior.TaskStore;
@@ -187,6 +188,14 @@ public final class Context {
          journal = new Journal(configuration(), Clock.systemDefaultZone());
       }
       return journal;
+   }
+
+   /**
+    * @return the summaries, reading the plan as it is now.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public Summaries summaries() {
+      return new Summaries(configuration(), Clock.systemDefaultZone(), store(), journal(), plan());
    }
 
    /**

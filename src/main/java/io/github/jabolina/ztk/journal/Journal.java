@@ -117,7 +117,13 @@ public final class Journal {
                .filter(file -> file.getFileName().toString().compareTo(entered) >= 0)
                .sorted(Comparator.comparing(Path::getFileName, Comparator.reverseOrder()))
                // Lazy: the walk stops at the day giving the last session needed.
-               .flatMap(file -> read(file, task.uuid()))
+               .flatMap(file -> {
+                  String text = text(file);
+                  // Most days hold no session of the task: only those naming it are parsed.
+                  return text.contains(task.uuid())
+                        ? read(file, text, true).filter(session -> session.task().equals(task.uuid()))
+                        : Stream.empty();
+               })
                .limit(count)
                .toList();
       } catch (IOException e) {
@@ -126,33 +132,52 @@ public final class Journal {
    }
 
    /**
-    * Reads the sessions of one task in a day's file.
+    * Gives every session written in a range of days.
     *
-    * @param file the day's journal file.
-    * @param uuid the task's UUID.
-    * @return its sessions in the file, the last written first; a session not in ztk's shape is skipped.
+    * @param from the first day.
+    * @param to the last day, included.
+    * @return the sessions, in the order they were written.
+    * @throws UncheckedIOException when the journal cannot be read.
+    */
+   public Stream<Session> sessions(LocalDate from, LocalDate to) {
+      Path folder = configuration.folders().journal();
+      // By name: a day without sessions has no file, and nothing else in the folder is read.
+      return from.datesUntil(to.plusDays(1))
+            .map(day -> folder.resolve(day + MARKDOWN))
+            .filter(Files::isRegularFile)
+            .flatMap(file -> read(file, text(file), false));
+   }
+
+   /**
+    * @param file a day's journal file.
+    * @return its whole text.
     * @throws UncheckedIOException when the file cannot be read.
     */
-   private static Stream<Session> read(Path file, String uuid) {
-      String text;
+   private static String text(Path file) {
       try {
-         text = Files.readString(file);
+         return Files.readString(file);
       } catch (IOException e) {
          throw new UncheckedIOException(e);
       }
-      // Most days hold no session of the task: only those naming it are parsed.
-      if (!text.contains(uuid)) {
-         return Stream.empty();
-      }
+   }
+
+   /**
+    * Reads the sessions of a day's file.
+    *
+    * @param file the day's journal file.
+    * @param text the file's text.
+    * @param newestFirst whether the last written comes first, rather than the first written.
+    * @return its sessions; a session not in ztk's shape is skipped.
+    */
+   private static Stream<Session> read(Path file, String text, boolean newestFirst) {
       String day = file.getFileName().toString().replace(MARKDOWN, "");
       // The day's heading, before the first session, is left out.
       List<String> blocks = BLOCKS.splitAsStream(text).filter(block -> block.startsWith(SESSION)).toList();
-      // By index, from the last: a session's ID is its position among every session of the day, whatever its task.
+      // By index: a session's ID is its position among every session of the day, whatever its task.
       return IntStream.range(0, blocks.size())
-            .map(index -> blocks.size() - 1 - index)
+            .map(index -> newestFirst ? blocks.size() - 1 - index : index)
             .mapToObj(index -> session(day + "#" + (index + 1), file, blocks.get(index)))
-            .flatMap(Optional::stream)
-            .filter(session -> session.task().equals(uuid));
+            .flatMap(Optional::stream);
    }
 
    /**

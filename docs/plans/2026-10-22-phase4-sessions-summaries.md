@@ -10,7 +10,7 @@
 
 ## Where we left off (2026-10-22, Task 3 done)
 
-The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. Task 1 (sessions) is done: `session add`, `info` with the last 3 sessions, the `journal` note type, and journal notes left out of `graph`. Task 2 (weekly summary) is done: `summary [YYYY-Www] [--write] [--narrative text|-]`, the `summary` note type, and summary notes left out of `graph`. Task 3 (quarter and year summaries) is done: `summary YYYY-Qq|YYYY`, the plan tree, other goals, general work, the needs-closing refusal on `--write`, and goal templates without `## Retrospective`. Next: Task 4.
+The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. Task 1 (sessions) is done: `session add`, `info` with the last 3 sessions, the `journal` note type, and journal notes left out of `graph`. Task 2 (weekly summary) is done: `summary [YYYY-Www] [--write] [--narrative text|-]`, the `summary` note type, and summary notes left out of `graph`. Task 3 (quarter and year summaries) is done: `summary YYYY-Qq|YYYY`, the plan tree, other goals, general work, the needs-closing refusal on `--write`, and goal templates without `## Retrospective`. Task 4 (completion and native smoke test) is done: `session add` completes task IDs, `summary`'s period offers no file names, and the smoke test covers sessions and summaries. Phase 4 is done. Next: the end-of-phase review.
 
 How Task 1 is put together (keep it this way):
 
@@ -35,6 +35,11 @@ How Task 3 is put together (keep it this way):
 - `plan(Period)` makes one pass over the Taskwarrior export with `Collectors.teeing`: tasks whose effort hangs under a known goal go into an index of `Item`s by effort (open untouched ones too, since an effort may be listed for another of its tasks), the rest into `ProjectFacts` per project. The private record `Summaries.Tree` (period, plan, index) holds the listing rules: which efforts are listed, the period's goals (recursing from a yearly goal to its quarterly goals), the other goals, and carried over as of the period's end. The user asked for the fewest copies and no intermediate collections; keep it that way.
 - `reports.Item` is the task of either summary (`sessions` is empty when not gathered, and left out of the JSON); `writeLine(target, details)` is the one line format, each summary passing its own details. `Goal.ORDER` (moved from `Goals`) orders goals everywhere.
 - Agreed beyond the original spec (now in §6.3): every other goal holding a listed effort is listed, later ones too (`in <quarter>`), so work on an effort moved on by the review before writing stays in the period; carried-over efforts are always listed under their earlier goal; tasks whose effort or goal does not exist are general work; needs closing only counts goals listed in the summary, so yearly goals block only the year's; `carriedOver` in a summary's JSON is as of the period's end.
+
+How Task 4 is put together (keep it this way):
+
+- `session add` already had `TaskCompleter`; only its test was new. Æsh falls back to file names for every `String` argument without a completer (`ProcessedOptionBuilder`), so `summary`'s period sets `completeFallback = NONE`. Text options (`--title`, `--narrative`, …) keep the fallback, as in every earlier command.
+- The smoke script generates the journal as files, three sessions a day on one task for 300 days, and imports a task entered 300 days ago with one session the next day: `info` on it reads every day back to its entry. It writes last week's summary with a narrative from stdin and last quarter's without one, and checks that an open quarter is refused. First native timings: `info` 16 ms, weekly and quarterly `summary` 16 ms each, `session add` completion 13 ms.
 
 ## Decisions (summary; the spec has the details)
 

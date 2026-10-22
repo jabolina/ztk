@@ -86,6 +86,8 @@ echo "+ ztk --aesh-complete"
 [[ $("$BIN" --aesh-complete -- st | grep -v '^__aesh_' | cut -f1 | tr '\n' ' ') == "start stop " ]] \
    || fail "subcommands not completed"
 [[ $("$BIN" --aesh-complete -- done "" | tr '\n' ' ') == "1 2 3 " ]] || fail "task IDs not completed"
+[[ $("$BIN" --aesh-complete -- session add "" | tr '\n' ' ') == "1 2 3 " ]] || fail "task IDs not completed for session add"
+[[ -z $("$BIN" --aesh-complete -- summary "" | grep '^__aesh_') ]] || fail "summary offered file names for its period"
 [[ $("$BIN" --aesh-complete -- add x project:Sm) == "project:Smoke" ]] || fail "project attribute not completed"
 [[ $("$BIN" --aesh-complete -- add x +we) == "+week" ]] || fail "tag not completed"
 [[ $("$BIN" --aesh-complete -- list Sm) == "Smoke" ]] || fail "project name not completed"
@@ -97,6 +99,54 @@ echo "+ ztk --aesh-complete"
 [[ $("$BIN" --aesh-complete -- effort new x --title x --goal "") == "$QUARTER-G1" ]] || fail "quarterly goals not completed"
 [[ $("$BIN" --aesh-complete -- add x project:Smoke --effort "") == "smoke-effort" ]] || fail "open efforts not completed"
 "$BIN" --aesh-completion zsh | grep -q -- "--aesh-complete" || fail "no zsh completion script"
+
+# Sessions: one part read from stdin, which the native image reads from the process, not from Æsh's console.
+echo "+ ztk session add / info"
+SESSION=$(printf 'Wrote the smoke test\n' | "$BIN" session add 2 --title "Smoke session" --done - --now "Script runs" \
+   --next "Time it" | jq -r .path)
+[[ -f "$SESSION" ]] || fail "session add did not report the journal file: $SESSION"
+"$BIN" info 2 | jq -e '.sessions[] | select(.done == "Wrote the smoke test")' >/dev/null \
+   || fail "info did not show the session read from stdin"
+
+# A journal of 300 days, three sessions a day on the effort's task. A task entered 300 days ago with one session the
+# day after has fewer than info's three, so info reads every day back to the task's entry: its slowest case.
+WORKED=$(task _get 3.uuid)
+OLD=00000000-0000-4000-8000-000000000300
+ENTRY=$(date -u -d "300 days ago" +%Y%m%dT%H%M%SZ)
+printf '{"uuid":"%s","description":"old task","status":"pending","project":"Smoke","entry":"%s","modified":"%s"}\n' \
+   "$OLD" "$ENTRY" "$ENTRY" | task import >/dev/null
+for days in $(seq 300 -1 1); do
+   DAY=$(date -d "$days days ago" +%F)
+   {
+      printf '# %s\n' "$DAY"
+      [[ $days == 299 ]] && printf '\n## [[%s]] · Old session\n**Done:** Started\n**Now:** Waiting\n**Next:** Pick it up\n' "$OLD"
+      for n in 1 2 3; do
+         printf '\n## [[%s]] · Session %d\n**Done:** Part %d of the effort\n**Now:** Halfway\n**Next:** The next part\n' \
+            "$WORKED" "$n" "$n"
+      done
+   } > "$T/notes/journal/$DAY.md"
+done
+(( $("$BIN" info "$OLD" | jq '.sessions | length') == 1 )) || fail "info did not find the old task's only session"
+
+# Summaries: the previous week, and this quarter and year by plan; facts are printed for an open period too.
+LAST_WEEK=$(date -d "7 days ago" +%G-W%V)
+if (( $(date +%-m) <= 3 )); then LAST_QUARTER="$(( YEAR - 1 ))-Q4"; else LAST_QUARTER="$YEAR-Q$(( ($(date +%-m) - 1) / 3 ))"; fi
+echo "+ ztk summary / summary $QUARTER / summary $YEAR"
+"$BIN" summary | jq -e --arg week "$LAST_WEEK" '.period == $week and any(.projects[].progress[]; .sessions | length > 0)' \
+   >/dev/null || fail "summary did not give last week's sessions"
+"$BIN" summary "$QUARTER" | jq -e --arg id "goal:$QUARTER-G1" '.goals[] | select(.id == $id)
+   | .efforts[] | select(.id == "effort:smoke-effort") | .tasks | length > 0' >/dev/null \
+   || fail "summary $QUARTER did not list the effort's tasks under its goal"
+"$BIN" summary "$YEAR" | jq -e --arg id "goal:$QUARTER-G1" '.goals[].goals[] | select(.id == $id)' >/dev/null \
+   || fail "summary $YEAR did not nest the quarterly goal under the yearly goal"
+echo "+ ztk summary --write --narrative -"
+WEEKLY=$(printf 'Smoke narrative\n' | "$BIN" summary --write --narrative - | jq -r .path)
+grep -q "Smoke narrative" "$WEEKLY" || fail "summary --write did not save the narrative: $WEEKLY"
+if "$BIN" summary --write >/dev/null 2>&1; then fail "summary --write overwrote a written summary"; fi
+# Last quarter's only goal is this quarter's, listed for its effort's sessions then; it has not ended, so none needs closing.
+QUARTERLY_SUMMARY=$("$BIN" summary "$LAST_QUARTER" --write | jq -r .path)
+grep -q "^period: $LAST_QUARTER" "$QUARTERLY_SUMMARY" || fail "summary $LAST_QUARTER --write did not save its frontmatter"
+if "$BIN" summary "$QUARTER" --write >/dev/null 2>&1; then fail "summary $QUARTER --write saved a quarter not ended"; fi
 
 check "$BIN" done 1
 
@@ -115,9 +165,18 @@ IDS=$(per_run 20 "$BIN" --aesh-complete -- done "")
 NODES=$(per_run 20 "$BIN" --aesh-complete -- graph "")
 GOALS=$(per_run 20 "$BIN" --aesh-complete -- effort new x --title x --goal "")
 EFFORTS=$(per_run 20 "$BIN" --aesh-complete -- add x project:Smoke --effort "")
+SESSIONS=$(per_run 20 "$BIN" --aesh-complete -- session add "")
 echo "completion: ${SUBCOMMANDS} ms/call for subcommands, ${IDS} ms/call for task IDs, ${NODES} ms/call for graph nodes," \
-   "${GOALS} ms/call for goals, ${EFFORTS} ms/call for efforts"
-(( SUBCOMMANDS <= 50 && IDS <= 50 && NODES <= 50 && GOALS <= 50 && EFFORTS <= 50 )) || fail "completion slower than 50 ms per call"
+   "${GOALS} ms/call for goals, ${EFFORTS} ms/call for efforts, ${SESSIONS} ms/call for session add"
+(( SUBCOMMANDS <= 50 && IDS <= 50 && NODES <= 50 && GOALS <= 50 && EFFORTS <= 50 && SESSIONS <= 50 )) \
+   || fail "completion slower than 50 ms per call"
+
+# info reads the journal back to the old task's entry; summaries read Taskwarrior, the period's journal and the plan.
+INFO=$(per_run 5 "$BIN" info "$OLD")
+WEEK_SUMMARY=$(per_run 5 "$BIN" summary)
+QUARTER_SUMMARY=$(per_run 5 "$BIN" summary "$QUARTER")
+echo "300 journal days: ${INFO} ms for info, ${WEEK_SUMMARY} ms for a weekly summary, ${QUARTER_SUMMARY} ms for a quarter's"
+(( INFO <= 300 && WEEK_SUMMARY <= 300 && QUARTER_SUMMARY <= 300 )) || fail "info or summary slower than 300 ms"
 
 # The plan commands read goals, efforts and their tasks; graph from a goal also reads the 1,000 notes.
 GOAL_LIST=$(per_run 5 "$BIN" goal list)

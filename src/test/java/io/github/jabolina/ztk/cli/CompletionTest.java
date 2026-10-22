@@ -40,12 +40,12 @@ class CompletionTest {
    }
 
    @ParameterizedTest
-   @ValueSource(strings = { "start", "review", "done", "info" })
+   @ValueSource(strings = { "start", "review", "done", "info", "session add" })
    void commandsTakingTaskOfferPendingTaskIds(String command) {
       taskwarrior.task("add", "first", "project:Alpha");
       taskwarrior.task("add", "second", "project:Alpha");
 
-      Result result = complete(command, "");
+      Result result = complete(words(command, ""));
 
       assertThat(result.exitCode()).isZero();
       // Only the IDs: no file names, which the shell would otherwise offer next to them.
@@ -240,6 +240,15 @@ class CompletionTest {
 
       assertThat(result.exitCode()).isZero();
       assertThat(result.out().lines()).containsExactly("1", "2");
+   }
+
+   @Test
+   void summaryOffersNoFileNamesForItsPeriod() {
+      Result result = complete("summary", "");
+
+      // A period is never a file: Æsh's sentinel would have the shell offer the working directory's files.
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out().lines()).doesNotContain("__aesh_file__");
    }
 
    @Test

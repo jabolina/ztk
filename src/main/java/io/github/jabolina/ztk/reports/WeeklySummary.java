@@ -1,18 +1,14 @@
 package io.github.jabolina.ztk.reports;
 
-import java.nio.file.Path;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.SequencedMap;
+import java.util.stream.Stream;
 
-import io.github.jabolina.ztk.journal.Session;
-import io.github.jabolina.ztk.taskwarrior.Task;
 import io.github.jabolina.ztk.util.Frontmatter;
 import io.github.jabolina.ztk.util.JsonWritable;
-import io.github.jabolina.ztk.util.MarkdownWritable;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -25,8 +21,17 @@ import tools.jackson.databind.node.ObjectNode;
  * @since 1.0
  * @author José Bolina
  */
-public record WeeklySummary(Week week, LocalDate date, List<Project> projects)
-      implements JsonWritable, MarkdownWritable {
+public record WeeklySummary(Week week, LocalDate date, List<Project> projects) implements Summary {
+
+   @Override
+   public String name() {
+      return week.toString();
+   }
+
+   @Override
+   public LocalDate last() {
+      return week.last();
+   }
 
    @Override
    public ObjectNode writeJson(ObjectNode target) {
@@ -105,54 +110,11 @@ public record WeeklySummary(Week week, LocalDate date, List<Project> projects)
             return;
          }
          target.append("\n### ").append(heading).append("\n\n");
-         items.forEach(item -> item.writeMarkdown(target));
-      }
-   }
-
-   /**
-    * A task in the week, with what tells its case apart.
-    *
-    * @param task      The task.
-    * @param note      The absolute path of its note, when it has one.
-    * @param goal      The ID of its effort's goal, when its effort names one.
-    * @param sessions  Its sessions in the week, in the order they were written.
-    * @param untouched The day it was last changed, when it is in only for being on the plate now, e.g. a review
-    *                  waiting on reviewers.
-    */
-   public record Item(Task task, Optional<Path> note, Optional<String> goal, List<Session> sessions,
-                      Optional<LocalDate> untouched) implements JsonWritable, MarkdownWritable {
-
-      @Override
-      public ObjectNode writeJson(ObjectNode target) {
-         task.writeJson(target);
-         target.put("note", note.map(Path::toString).orElse(null));
-         target.put("goal", goal.orElse(null));
-         target.put("modified", task.modified().toString());
-         target.put("started", task.started().map(Instant::toString).orElse(null));
-         target.put("end", task.end().map(Instant::toString).orElse(null));
-         target.put("untouched", untouched.map(LocalDate::toString).orElse(null));
-         ArrayNode array = target.putArray("sessions");
-         sessions.forEach(session -> session.writeJson(array.addObject()));
-         return target;
-      }
-
-      /**
-       * Writes the task as one list line, ending with a line break.
-       *
-       * @param target the text to append to.
-       * @return the same {@code target}, for appending further text.
-       */
-      @Override
-      public StringBuilder writeMarkdown(StringBuilder target) {
-         // Linked by the note's name, and shown by its description, which reads better than a file name.
-         target.append("- ").append(note
-               .map(path -> "[[" + path.getFileName().toString().replaceFirst("\\.md$", "") + "|"
-                     + task.description() + "]]")
-               .orElse(task.description()));
-         task.effort().ifPresent(effort -> target.append(" · effort ").append(effort));
-         goal.ifPresent(id -> target.append(" · goal ").append(id));
-         untouched.ifPresent(day -> target.append(" (untouched since ").append(day).append(")"));
-         return target.append("\n");
+         // The project is the heading's: the effort and the goal tell where the task stands in the plan.
+         items.forEach(item -> item.writeLine(target, Stream.of(
+                     item.task().effort().map(effort -> "effort " + effort),
+                     item.goal().map(goal -> "goal " + goal))
+               .flatMap(Optional::stream)));
       }
    }
 }

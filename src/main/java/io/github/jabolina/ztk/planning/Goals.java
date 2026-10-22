@@ -46,12 +46,6 @@ public final class Goals {
    // Longer slugs derived from a title are cut, so file names stay readable in listings and completion.
    private static final int MAX_SLUG = 60;
 
-   // Yearly goals first, then quarterly goals by quarter; within one period IDs differ only in their number, so the
-   // shorter is the smaller: G2 before G10.
-   private static final Comparator<Goal> ORDER = Comparator.comparing((Goal goal) -> goal.period().toString())
-         .thenComparing(goal -> goal.id().length())
-         .thenComparing(Goal::id);
-
    // Sections for a big, open-ended goal agreed with a manager, each with guidance in italics for whoever writes it.
    private static final String YEARLY_TEMPLATE = """
          ## Summary
@@ -71,9 +65,6 @@ public final class Goals {
 
          ## Open questions
          _What is still unclear, and who can answer it._
-
-         ## Retrospective
-         _At the end of the year: the outcome, the evidence (efforts, summaries, links), what you learned, what you would do differently._
          """;
 
    // Sections for a smaller, achievable step toward a yearly goal, checkable at the end of the quarter.
@@ -92,9 +83,6 @@ public final class Goals {
 
          ## Risks and dependencies
          _What could block it, and whom it depends on._
-
-         ## Retrospective
-         _At the end of the quarter: each criterion met or not, the evidence, what you learned._
          """;
 
    /**
@@ -346,7 +334,7 @@ public final class Goals {
       Function<Goal, String> anchor = goal -> goal.period() instanceof Period.OfYear
             ? goal.id()
             : goal.parent().filter(yearly::contains).orElse(null);
-      Comparator<Goal> tree = Comparator.comparing(anchor, Comparator.nullsLast(byNumber)).thenComparing(ORDER);
+      Comparator<Goal> tree = Comparator.comparing(anchor, Comparator.nullsLast(byNumber)).thenComparing(Goal.ORDER);
 
       // Efforts name quarterly goals: a yearly goal counts those of its quarterly goals read for this period.
       Map<String, Long> byGoal;
@@ -398,7 +386,7 @@ public final class Goals {
          case Period.OfYear year -> {
             try (Stream<Goal> goals = year.quarters().flatMap(notes::of)) {
                yield goals.filter(child -> child.parent().equals(Optional.of(goal.id())))
-                     .sorted(ORDER)
+                     .sorted(Goal.ORDER)
                      .map(child -> new Info(child, effortsOf.apply(child), List.of()))
                      .toList();
             }
@@ -469,7 +457,7 @@ public final class Goals {
    private String choices(Period.OfYear year) {
       List<Goal> candidates;
       try (Stream<Goal> goals = notes.of(year)) {
-         candidates = goals.sorted(ORDER).toList();
+         candidates = goals.sorted(Goal.ORDER).toList();
       }
       if (candidates.isEmpty()) {
          return year + " has no yearly goal yet. Create one first with: ztk goal new " + year + " --title \"…\"";

@@ -8,9 +8,9 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-22, Task 2 done)
+## Where we left off (2026-10-22, Task 3 done)
 
-The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. Task 1 (sessions) is done: `session add`, `info` with the last 3 sessions, the `journal` note type, and journal notes left out of `graph`. Task 2 (weekly summary) is done: `summary [YYYY-Www] [--write] [--narrative text|-]`, the `summary` note type, and summary notes left out of `graph`. Next: Task 3.
+The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. Task 1 (sessions) is done: `session add`, `info` with the last 3 sessions, the `journal` note type, and journal notes left out of `graph`. Task 2 (weekly summary) is done: `summary [YYYY-Www] [--write] [--narrative text|-]`, the `summary` note type, and summary notes left out of `graph`. Task 3 (quarter and year summaries) is done: `summary YYYY-Qq|YYYY`, the plan tree, other goals, general work, the needs-closing refusal on `--write`, and goal templates without `## Retrospective`. Next: Task 4.
 
 How Task 1 is put together (keep it this way):
 
@@ -22,11 +22,19 @@ How Task 1 is put together (keep it this way):
 How Task 2 is put together (keep it this way):
 
 - `reports.Summaries` holds the rules: `week(Week)` gathers a `WeeklySummary` from one Taskwarrior export (`( status:pending or status:waiting or modified.after:<week start> )`, then the exact rules in Java), the week's sessions indexed by task, and the plan for each task's goal; `write(summary, narrative)` refuses a week not ended or a file already written (`CREATE_NEW`), and appends `---` and the narrative. `lastWeek()` is the default period.
-- `reports.Week` is the ISO week (`parse`, `previous(clock)`, `first`, `last`); Task 3 adds quarters and years next to it, reusing `planning.Period` where it fits.
+- `reports.Week` is the ISO week (`parse`, `previous(clock)`, `first`, `last`); quarters and years are `planning.Period` (`start()` added).
 - `WeeklySummary` (with `Project` and `Item`) is the model, written through `util.JsonWritable` and `util.MarkdownWritable` (new; `writeMarkdown(StringBuilder)`). The human output and the file are the same Markdown.
 - `Task` now carries `modified`, `started` (replacing the `active` component; `active()` is a method) and `end`.
 - Agreed rules beyond the spec: a task completed before the week is left out even when touched in it; deleted tasks are left out; waiting counts as pending; projects by name, no project last; tasks oldest `entry` first. Each task's JSON carries `untouched` (the day it was last modified, when it is in only for being on the plate).
 - Tests import tasks with `task import`, the only way to give Taskwarrior a past `modified`.
+
+How Task 3 is put together (keep it this way):
+
+- `Summaries.of(period)` is the one way in: a `YYYY-Www` goes to the weekly rules, a `YYYY-Qq` or `YYYY` to the plan's, anything else gets one usage error naming the three. It returns the sealed `reports.Summary` (`WeeklySummary`, `PlanSummary`: `name()`, `last()`, JSON and Markdown), which `write` takes. `week` and `plan` are private.
+- The private record `Summaries.Activity` (the period's bounds and its sessions by task) holds the sign-of-life rule both kinds share; `untouched` is "not alive".
+- `plan(Period)` makes one pass over the Taskwarrior export with `Collectors.teeing`: tasks whose effort hangs under a known goal go into an index of `Item`s by effort (open untouched ones too, since an effort may be listed for another of its tasks), the rest into `ProjectFacts` per project. The private record `Summaries.Tree` (period, plan, index) holds the listing rules: which efforts are listed, the period's goals (recursing from a yearly goal to its quarterly goals), the other goals, and carried over as of the period's end. The user asked for the fewest copies and no intermediate collections; keep it that way.
+- `reports.Item` is the task of either summary (`sessions` is empty when not gathered, and left out of the JSON); `writeLine(target, details)` is the one line format, each summary passing its own details. `Goal.ORDER` (moved from `Goals`) orders goals everywhere.
+- Agreed beyond the original spec (now in §6.3): every other goal holding a listed effort is listed, later ones too (`in <quarter>`), so work on an effort moved on by the review before writing stays in the period; carried-over efforts are always listed under their earlier goal; tasks whose effort or goal does not exist are general work; needs closing only counts goals listed in the summary, so yearly goals block only the year's; `carriedOver` in a summary's JSON is as of the period's end.
 
 ## Decisions (summary; the spec has the details)
 

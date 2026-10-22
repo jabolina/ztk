@@ -11,13 +11,12 @@ import org.aesh.command.option.Option;
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.reports.Summaries;
-import io.github.jabolina.ztk.reports.Week;
-import io.github.jabolina.ztk.reports.WeeklySummary;
+import io.github.jabolina.ztk.reports.Summary;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * {@code ztk summary}: prints the facts of a week, for an agent to expand into the weekly review, and writes them
- * once the review is done.
+ * {@code ztk summary}: prints the facts of a week, a quarter or a year, for an agent to expand into the weekly review
+ * or a retrospective, and writes them once the review is done.
  *
  * <p>
  * With {@code --write}, the facts and the narrative are saved together, so the file is never left half written and
@@ -27,20 +26,21 @@ import tools.jackson.databind.node.ObjectNode;
  * <pre>
  * ztk summary
  * ztk summary 2026-W42 --json
+ * ztk summary 2026-Q3 --json
  * ztk summary 2026-W42 --write --narrative - &lt; narrative.md
  * </pre>
  *
  * @since 1.0
  * @author José Bolina
  */
-@CommandDefinition(name = "summary", description = "Print the facts of a week, the previous one by default",
+@CommandDefinition(name = "summary", description = "Print the facts of a week, quarter or year, the previous week by default",
       generateHelp = true)
 public class SummaryCommand implements Command<ZtkInvocation> {
 
    // The conventional marker for "read this value from stdin".
    private static final String STDIN = "-";
 
-   @Argument(description = "The ISO week, e.g. 2026-W42")
+   @Argument(description = "The ISO week, quarter or year, e.g. 2026-W42, 2026-Q4 or 2026")
    String period;
 
    @Option(hasValue = false, description = "Save the summary in the summaries folder and print its path")
@@ -52,13 +52,14 @@ public class SummaryCommand implements Command<ZtkInvocation> {
    @Override
    public CommandResult execute(ZtkInvocation invocation) {
       Summaries summaries = invocation.context().summaries();
-      Week week = period == null ? summaries.lastWeek() : Week.parse(period);
+      // No period means the weekly review's.
+      String name = period == null ? summaries.lastWeek().toString() : period;
       // A narrative is only ever saved with its facts: printed alone, it would be lost.
       if (narrative != null && !write) {
          throw ZtkException.usage("--narrative is saved with the facts, so it needs --write."
-               + " Run 'ztk summary " + week + " --write --narrative -'.");
+               + " Run 'ztk summary " + name + " --write --narrative -'.");
       }
-      WeeklySummary summary = summaries.week(week);
+      Summary summary = summaries.of(name);
       ObjectNode json = invocation.jsonResult();
       if (!write) {
          invocation.result(() -> summary.writeMarkdown(new StringBuilder()).toString(), summary.writeJson(json));
@@ -66,10 +67,10 @@ public class SummaryCommand implements Command<ZtkInvocation> {
       }
 
       Path path = summaries.write(summary, narrative == null ? "" : narrative(invocation));
-      json.put("id", week.toString());
+      json.put("id", summary.name());
       json.put("path", path.toString());
       // Human messages redirected to stderr, the result goes to stdout.
-      invocation.printErr("Summary of " + week + " written.");
+      invocation.printErr("Summary of " + summary.name() + " written.");
       invocation.result(path + System.lineSeparator(), json);
       return CommandResult.SUCCESS;
    }

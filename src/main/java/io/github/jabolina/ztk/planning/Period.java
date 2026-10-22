@@ -64,6 +64,11 @@ public sealed interface Period {
    LocalDate end();
 
    /**
+    * @return the first day of the period, e.g. 2026-01-01 for 2026, and 2026-10-01 for 2026-Q4.
+    */
+   LocalDate start();
+
+   /**
     * Tells whether a quarter is within this period.
     *
     * @param quarter the quarter, e.g. {@code 2026-Q4}.
@@ -86,6 +91,11 @@ public sealed interface Period {
       @Override
       public OfYear ofYear() {
          return this;
+      }
+
+      @Override
+      public LocalDate start() {
+         return year.atDay(1);
       }
 
       @Override
@@ -125,6 +135,11 @@ public sealed interface Period {
       @Override
       public OfYear ofYear() {
          return new OfYear(year);
+      }
+
+      @Override
+      public LocalDate start() {
+         return year.atMonth(quarter * 3 - 2).atDay(1);
       }
 
       @Override

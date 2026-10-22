@@ -61,7 +61,9 @@ class GoalCommandTest {
       assertThat(frontmatter.has("parent")).isFalse();
       assertThat(Files.readString(goal)).containsSubsequence(
             "## Summary", "## Why it matters", "## Agreement", "## What success looks like",
-            "## Out of scope", "## Open questions", "## Retrospective");
+            "## Out of scope", "## Open questions");
+      // The year's summary holds the retrospective; the status the goal is closed with is the verdict.
+      assertThat(Files.readString(goal)).doesNotContain("Retrospective");
    }
 
    @Test
@@ -153,8 +155,8 @@ class GoalCommandTest {
       assertThat(frontmatter.path("status").asString()).isEqualTo("open");
       assertThat(frontmatter.path("parent").asString()).isEqualTo("2026-G1");
       assertThat(Files.readString(goal)).containsSubsequence(
-            "## Summary", "## Contribution", "## Done when", "## Out of scope", "## Risks and dependencies",
-            "## Retrospective");
+            "## Summary", "## Contribution", "## Done when", "## Out of scope", "## Risks and dependencies");
+      assertThat(Files.readString(goal)).doesNotContain("Retrospective");
    }
 
    @Test

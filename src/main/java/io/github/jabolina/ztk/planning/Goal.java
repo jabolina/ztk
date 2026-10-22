@@ -1,6 +1,7 @@
 package io.github.jabolina.ztk.planning;
 
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.Optional;
 
 import io.github.jabolina.ztk.util.JsonWritable;
@@ -27,6 +28,14 @@ public record Goal(String id, Period period, String title, Optional<GoalStatus> 
     * How goals are named in JSON results and the graph, e.g. {@code goal:2026-G1}; accepted as input too.
     */
    static final String PREFIX = "goal:";
+
+   /**
+    * The order goals are listed in: yearly goals first, then quarterly goals by quarter, each period by goal number.
+    */
+   // Within one period IDs differ only in their number, so the shorter is the smaller: G2 before G10.
+   public static final Comparator<Goal> ORDER = Comparator.comparing((Goal goal) -> goal.period().toString())
+         .thenComparing(goal -> goal.id().length())
+         .thenComparing(Goal::id);
 
    @Override
    public String nodeId() {

@@ -5,6 +5,8 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -42,6 +44,8 @@ public final class TaskStore {
 
    // With verbose=new-uuid, "task add" reports the created task as "Created task <uuid>."
    private static final Pattern CREATED = Pattern.compile("Created task ([0-9a-f-]{36})");
+   // Taskwarrior's export dates, always in UTC, e.g. 20261001T030000Z.
+   private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssX");
 
    static final String NOTE_UDA = "note";
 
@@ -396,7 +400,9 @@ public final class TaskStore {
             node.optional(NOTE_UDA).map(JsonNode::asString),
             // The user's own attribute: read when present, never defined by ztk.
             node.optional("issue").map(JsonNode::asString),
-            node.optional(EFFORT_UDA).map(JsonNode::asString));
+            node.optional(EFFORT_UDA).map(JsonNode::asString),
+            // Taskwarrior sets it on every task it creates.
+            OffsetDateTime.parse(node.path("entry").asString(), DATE).toInstant());
    }
 
    /**

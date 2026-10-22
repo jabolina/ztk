@@ -1,6 +1,8 @@
 package io.github.jabolina.ztk;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
@@ -9,7 +11,7 @@ import java.util.Properties;
  * Runs ztk in-process, as the command line would, and captures what it prints.
  *
  * <p>
- * {@code System.out} and {@code System.err} are replaced for the duration of the run, because Æsh prints help and
+ * {@code System.in}, {@code System.out} and {@code System.err} are replaced for the duration of the run, because Æsh prints help and
  * usage errors there itself. Tests using the harness must therefore not run in parallel.
  * </p>
  */
@@ -35,16 +37,32 @@ public final class CliHarness {
     * @return the exit code and the captured output.
     */
    public static Result run(Properties env, boolean tty, String... args) {
+      return runWithStdin("", env, tty, args);
+   }
+
+   /**
+    * Runs ztk with the given arguments, as if {@code stdin} were piped into it.
+    *
+    * @param stdin what ztk reads from standard input.
+    * @param env the process environment, e.g. from {@link TestTaskwarrior#environment()}.
+    * @param tty whether stdout should be treated as a terminal.
+    * @param args the command line arguments, without the program name.
+    * @return the exit code and the captured output.
+    */
+   public static Result runWithStdin(String stdin, Properties env, boolean tty, String... args) {
+      InputStream originalIn = System.in;
       PrintStream originalOut = System.out;
       PrintStream originalErr = System.err;
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       ByteArrayOutputStream err = new ByteArrayOutputStream();
       try {
+         System.setIn(new ByteArrayInputStream(stdin.getBytes(StandardCharsets.UTF_8)));
          System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8));
          System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
          int exitCode = Ztk.run(args, env, tty);
          return new Result(exitCode, out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
       } finally {
+         System.setIn(originalIn);
          System.setOut(originalOut);
          System.setErr(originalErr);
       }

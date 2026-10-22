@@ -736,6 +736,61 @@ class GraphCommandTest {
             """);
    }
 
+   @Test
+   void graphNeverListsNorWalksThroughJournalNotes() throws IOException {
+      taskwarrior.task("add", "Fix flaky test", "project:Alpha");
+      String uuid = taskwarrior.task("_get", "1.uuid");
+      note("zettel/20261015-causality.md", """
+            ---
+            title: Causality
+            ---
+
+            Ordering events.
+            """);
+      // Reachable from the task only through the journal.
+      note("journal/2026-10-09.md", """
+            # 2026-10-09
+
+            ## [[%s]] · Review round 1
+            **Done:** Read [[20261015-causality]].
+            **Now:** Here.
+            **Next:** There.
+            """.formatted(uuid));
+
+      List<String> ids = ids(CliHarness.run(taskwarrior.environment(), false, "graph", "1", "--depth", "3"));
+
+      assertThat(ids).contains("task:" + uuid)
+            .doesNotContain("note:journal/2026-10-09", "note:zettel/20261015-causality");
+   }
+
+   @Test
+   void graphStartingAtAJournalNoteListsWhatItLinksTo() throws IOException {
+      taskwarrior.task("add", "Fix flaky test", "project:Alpha");
+      String uuid = taskwarrior.task("_get", "1.uuid");
+      note("zettel/20261015-causality.md", """
+            ---
+            title: Causality
+            ---
+
+            Ordering events.
+            """);
+      note("journal/2026-10-09.md", """
+            # 2026-10-09
+
+            ## [[%s]] · Review round 1
+            **Done:** Read [[20261015-causality]].
+            **Now:** Here.
+            **Next:** There.
+            """.formatted(uuid));
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "graph", "note:journal/2026-10-09", "--depth", "1");
+
+      assertThat(ids(result)).containsExactlyInAnyOrder("note:journal/2026-10-09", "task:" + uuid,
+            "note:zettel/20261015-causality");
+      assertThat(node(JSON.readTree(result.out()).path("nodes"), "note:journal/2026-10-09").path("type").asString())
+            .isEqualTo("journal");
+   }
+
    /**
     * Finds a node in a graph run's output.
     *

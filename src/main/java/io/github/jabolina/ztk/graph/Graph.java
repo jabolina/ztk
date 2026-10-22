@@ -19,6 +19,9 @@ import io.github.jabolina.ztk.notes.NoteType;
  */
 public final class Graph {
 
+   // Notes ztk writes about many tasks at once: walking through them would join work related only by its day.
+   private static final EnumSet<NoteType> GENERATED = EnumSet.of(NoteType.JOURNAL);
+
    private final KnowledgeGraph graph;
 
    /**
@@ -47,7 +50,7 @@ public final class Graph {
        * Tells whether the walk may reach a node.
        *
        * @param reached a node one edge further than the nodes reached so far.
-       * @return whether it is listed and walked through.
+       * @return whether it is listed and walked through; never for a journal note.
        */
       private boolean admits(Reached reached) {
          Node node = reached.node();
@@ -55,7 +58,9 @@ public final class Graph {
          boolean type = types.isEmpty() || !(node instanceof Node.OfNote(Note note)) || types.contains(note.type());
          // Only the start node has no edge, and it is never filtered.
          boolean edge = edges.isEmpty() || reached.via().map(via -> edges.contains(via.kind())).orElse(true);
-         return kind && type && edge;
+         // Only the start node escapes this, as it is never filtered: a generated note can still be walked from.
+         boolean generated = node instanceof Node.OfNote(Note note) && GENERATED.contains(note.type());
+         return kind && type && edge && !generated;
       }
    }
 
@@ -64,7 +69,8 @@ public final class Graph {
     *
     * <p>
     * The nodes are found as the stream is consumed, one depth at a time, so a caller that stops early stops the walk.
-    * A node the query leaves out is neither listed nor walked through. The start node is always listed.
+    * A node the query leaves out is neither listed nor walked through, nor is a journal note. The start node is always
+    * listed.
     * </p>
     *
     * @param query where to start, and how far and through what to go.

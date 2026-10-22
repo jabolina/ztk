@@ -1,5 +1,6 @@
 package io.github.jabolina.ztk.taskwarrior;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,7 @@ import tools.jackson.databind.node.ObjectNode;
  * @param note        The path of the task's note, relative to the knowledge base, if one was created.
  * @param issue       The external issue the task tracks, e.g. {@code GH-1}, from the user's {@code issue} attribute.
  * @param effort      The slug of the effort the task belongs to, from ztk's {@code effort} attribute; empty for general work.
+ * @param entry       When the task was created.
  */
 public record Task(
       int id,
@@ -31,7 +33,8 @@ public record Task(
       boolean active,
       Optional<String> note,
       Optional<String> issue,
-      Optional<String> effort
+      Optional<String> effort,
+      Instant entry
 ) implements JsonWritable {
 
    /**
@@ -64,7 +67,7 @@ public record Task(
     * @return this task as it would be in that effort.
     */
    public Task withEffort(String slug) {
-      return new Task(id, uuid, description, status, project, tags, active, note, issue, Optional.of(slug));
+      return new Task(id, uuid, description, status, project, tags, active, note, issue, Optional.of(slug), entry);
    }
 
    @Override

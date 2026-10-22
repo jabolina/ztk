@@ -40,6 +40,11 @@ public enum NoteType implements Labeled {
    EFFORT,
 
    /**
+    * A day's sessions: a note in the journal folder, written by ztk.
+    */
+   JOURNAL,
+
+   /**
     * A note in no folder ztk gives a meaning to, e.g. at the root of the knowledge base, or material kept next to a
     * goal or an effort.
     */

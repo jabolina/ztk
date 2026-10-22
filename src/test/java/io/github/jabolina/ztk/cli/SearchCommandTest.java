@@ -257,7 +257,7 @@ class SearchCommandTest {
             .containsExactlyInAnyOrder(
                   "note:goals/2026 other",
                   "effort:consensus effort",
-                  "note:journal/2026-10-17 other",
+                  "note:journal/2026-10-17 journal",
                   "note:summaries/2026-W42 other",
                   "note:notes/scratch other",
                   "note:Alpha/ideas project");
@@ -480,6 +480,33 @@ class SearchCommandTest {
       assertThat(result.exitCode()).isZero();
       assertThat(JSON.readTree(result.out()).path("results").valueStream().map(found -> found.path("id").asString()))
             .containsExactlyInAnyOrder("goal:2026-G1", "goal:2026-Q4-G1");
+   }
+
+   @Test
+   void searchWithTypeJournalFindsOnlyJournalNotes() throws IOException {
+      note("journal/2026-10-09.md", """
+            # 2026-10-09
+
+            ## [[2b4f6a1e-0000-4000-8000-000000000000]] · Replication review
+            **Done:** Replication must survive partitions.
+            **Now:** Here.
+            **Next:** There.
+            """);
+      note("zettel/20261015-replication.md", """
+            ---
+            title: Replication
+            ---
+
+            Replication must survive partitions.
+            """);
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "search", "replication", "--type", "journal");
+
+      assertThat(result.exitCode()).isZero();
+      JsonNode results = JSON.readTree(result.out()).path("results");
+      assertThat(results.valueStream().map(found -> found.path("id").asString()))
+            .containsExactly("note:journal/2026-10-09");
+      assertThat(results.get(0).path("type").asString()).isEqualTo("journal");
    }
 
    @Test

@@ -333,6 +333,9 @@ public final class KnowledgeBase {
       if (file.startsWith(folders.papers())) {
          return NoteType.PAPER;
       }
+      if (file.startsWith(folders.journal())) {
+         return NoteType.JOURNAL;
+      }
 
       Path relative = configuration.dataLocation().relativize(file);
       // Files at the root belong to no folder; any other folder at the root is a project folder.

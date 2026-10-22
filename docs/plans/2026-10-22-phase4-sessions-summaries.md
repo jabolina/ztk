@@ -8,9 +8,16 @@
 
 **Plan status:** a draft. The order below is a suggestion; classes and interfaces are decided during development, following the `tdd` and `improve-codebase-architecture` skills.
 
-## Where we left off (2026-10-22, Phase 4 designed)
+## Where we left off (2026-10-22, Task 1 done)
 
-The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. No task has started. Next: Task 1.
+The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. Task 1 (sessions) is done: `session add`, `info` with the last 3 sessions, the `journal` note type, and journal notes left out of `graph`. Next: Task 2.
+
+How Task 1 is put together (keep it this way):
+
+- `journal.Journal` owns the session's shape, writing and reading it: `add(task, title, done, now, next)` and `last(task, count)`. `journal.Session` is the record, its `writeJson` the shape `info` prints. The command checks what was typed (one part from stdin, blank parts, a one-line title, the length warning); `Journal` refuses deleted tasks.
+- Sessions are appended to the day's file, never rewriting it; two written at once may share an `#n` (the spec has the trade-off). `last` walks the day files newest first, from the task's `entry` day (`Task.entry`, new), parses only files holding the UUID, and stops at the count.
+- Stdin is read by `ZtkInvocation.stdin()` from `System.in`: Æsh's `getStdin()` only sees its console's own pipes, never the process's (`docs/personal.md`, item 5).
+- `graph.Graph` leaves the note types in `GENERATED` out of every walk except as the start node; Task 2 adds `SUMMARY` there and to `KnowledgeBase.type`.
 
 ## Decisions (summary; the spec has the details)
 

@@ -308,7 +308,7 @@ All create/update commands are non-interactive when given their flags, so agents
 
 | Command | Behavior |
 |---|---|
-| `session add <task> --title … --done … --now … --next …` | Appends a session to today's journal file (§4.6). The task is always given, never taken from the active one: agents often work on a task without starting it. Any status but deleted (exit 2, as other task lookups). Every part is required, and any one may be `-` to read it from stdin. Two sessions written at the same instant may lose one (the day's file is read, then written whole); sessions are written one at a time in practice, so there is no lock. A part longer than 3 lines is still written, with a warning on stderr that each part is a few lines and details belong in the task note. |
+| `session add <task> --title … --done … --now … --next …` | Appends a session to today's journal file (§4.6). The task is always given, never taken from the active one: agents often work on a task without starting it. Any status but deleted (exit 2, as other task lookups). Every part is required, and any one may be `-` to read it from stdin. Sessions are appended to the day's file, never rewriting it; two written at the same instant may get the same `#n`. Sessions are written one at a time in practice, so there is no lock. A part longer than 3 lines is still written, with a warning on stderr that each part is a few lines and details belong in the task note. |
 
 **Reports**
 

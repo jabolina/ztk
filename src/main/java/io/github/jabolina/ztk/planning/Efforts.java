@@ -351,7 +351,7 @@ public final class Efforts {
       Effort effort = notes.find(slug).orElseThrow(() -> ZtkException.validation(unknown(slug)));
       // The task as it would be: pending, in the effort. It has no number or UUID yet, and the refusal names neither.
       Task planned = new Task(0, NEW_TASK, String.join(" ", words), Status.PENDING, Optional.empty(), List.of(), false,
-            Optional.empty(), Optional.empty(), Optional.of(effort.slug()));
+            Optional.empty(), Optional.empty(), Optional.of(effort.slug()), clock.instant());
       refuseCreating(Plan.read(configuration, clock).added(effort, List.of(), List.of(planned)));
       List<String> joined = new ArrayList<>(words);
       joined.add(TaskStore.EFFORT_UDA + ":" + effort.slug());

@@ -1,6 +1,8 @@
 package io.github.jabolina.ztk.cli;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -30,7 +32,8 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>
  * All Æsh behavior is delegated unchanged, except {@link #printErr(String)}: outside the interactive console, Æsh
- * writes it to stdout, while ztk keeps stdout for results and sends human messages to stderr.
+ * writes it to stdout, while ztk keeps stdout for results and sends human messages to stderr. {@link #stdin()} is
+ * ztk's own as well: Æsh's {@link #getStdin()} only sees its console's pipes, never the process's.
  * </p>
  *
  * @since 1.0
@@ -74,6 +77,26 @@ public final class ZtkInvocation implements CommandInvocation {
    @Override
    public void printErr(String message) {
       System.err.println(message);
+   }
+
+   /**
+    * Reads everything piped or redirected into ztk, e.g. {@code echo "Tests pass." | ztk session add 3 --done - …}.
+    *
+    * <p>
+    * Read once: a second call returns what is left, which is nothing.
+    * </p>
+    *
+    * @return the text on standard input, as is; empty when nothing was given.
+    * @throws UncheckedIOException when standard input cannot be read.
+    */
+   public String stdin() {
+      // Æsh's getStdin() serves pipes between commands of its own console; the runner running ztk never connects it to
+      // the process's standard input, so it returns null even when the shell pipes into ztk.
+      try {
+         return new String(System.in.readAllBytes(), StandardCharsets.UTF_8);
+      } catch (IOException e) {
+         throw new UncheckedIOException(e);
+      }
    }
 
    // Everything below delegates to Æsh unchanged.

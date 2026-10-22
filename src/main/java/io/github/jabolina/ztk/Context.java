@@ -7,6 +7,7 @@ import java.util.Properties;
 import io.github.jabolina.ztk.configuration.Configuration;
 import io.github.jabolina.ztk.configuration.ConfigurationLoader;
 import io.github.jabolina.ztk.graph.KnowledgeGraph;
+import io.github.jabolina.ztk.journal.Journal;
 import io.github.jabolina.ztk.notes.KnowledgeBase;
 import io.github.jabolina.ztk.notes.Papers;
 import io.github.jabolina.ztk.notes.Zettels;
@@ -42,6 +43,7 @@ public final class Context {
    private Papers papers;
    private Goals goals;
    private Efforts efforts;
+   private Journal journal;
 
    /**
     * @param env the process environment.
@@ -174,6 +176,17 @@ public final class Context {
          efforts = new Efforts(configuration(), Clock.systemDefaultZone(), knowledgeBase(), this::store, this::tasks);
       }
       return efforts;
+   }
+
+   /**
+    * @return the journal of sessions, created on first use.
+    * @throws ZtkException with {@link ZtkException.Kind#USAGE} when no valid configuration exists.
+    */
+   public Journal journal() {
+      if (journal == null) {
+         journal = new Journal(configuration(), Clock.systemDefaultZone());
+      }
+      return journal;
    }
 
    /**

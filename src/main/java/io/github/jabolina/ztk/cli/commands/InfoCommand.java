@@ -37,7 +37,7 @@ import tools.jackson.databind.node.ObjectNode;
  * @since 1.0
  * @author José Bolina
  */
-@CommandDefinition(name = "info", description = "Show a task information, its note path and its last sessions.")
+@CommandDefinition(name = "info", description = "Show a task information, its note path and its last sessions.", generateHelp = true)
 public class InfoCommand implements Command<ZtkInvocation> {
 
    // Enough to pick up the work; older sessions are in the journal.

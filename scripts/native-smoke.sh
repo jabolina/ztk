@@ -23,6 +23,38 @@ check "$BIN" --help
 check "$BIN" add --help
 if "$BIN" add x --force project:Smoke >/dev/null 2>&1; then fail "add accepted an unknown option"; fi
 
+# Skills check: every `ztk …` the skills mention is a command the binary has, given only options it takes.
+echo "+ skills check"
+SKILLS=$(dirname "$(realpath "$0")")/../skills
+usage() { "$BIN" "$@" --help 2>&1 || true; }
+commands() { usage "$@" | awk '/commands:$/ { listing = 1; next } listing && NF { print $1 }'; }
+MISSES=0
+while IFS=: read -r FILE MENTION; do
+   read -ra WORDS <<< "${MENTION#ztk }"
+   COMMAND=("${WORDS[0]}")
+   if ! grep -qxF -- "${WORDS[0]}" <<< "$(commands)"; then
+      echo "$FILE: \`$MENTION\`: no command ztk ${WORDS[0]}"; MISSES=$(( MISSES + 1 )); continue
+   fi
+   # A command with subcommands, such as goal, needs one of them next.
+   LISTED=$(commands "${WORDS[0]}")
+   if [[ -n $LISTED ]]; then
+      COMMAND+=("${WORDS[1]:-}")
+      if ! grep -qxF -- "${COMMAND[1]}" <<< "$LISTED"; then
+         echo "$FILE: \`$MENTION\`: no command ztk ${COMMAND[*]}"; MISSES=$(( MISSES + 1 )); continue
+      fi
+   fi
+   # Global options, such as --json, are listed by the binary's own help, not the command's.
+   HELP="$(usage "${COMMAND[@]}")$(usage)"
+   for WORD in "${WORDS[@]}"; do
+      [[ $WORD == --* ]] || continue
+      OPTION=${WORD%%=*}
+      if ! grep -qE -- "(^|[ [])$OPTION([]= ]|$)" <<< "$HELP"; then
+         echo "$FILE: \`$MENTION\`: ztk ${COMMAND[*]} has no $OPTION"; MISSES=$(( MISSES + 1 ))
+      fi
+   done
+done < <(grep -oH '`ztk [^`]*`' "$SKILLS"/*/SKILL.md "$SKILLS"/AGENTS.md | tr -d '`')
+(( MISSES == 0 )) || fail "$MISSES skill mentions name what the binary does not have"
+
 # Piped output is JSON, which needs the terminal detection to work in the native image.
 echo "+ ztk config show | (piped)"
 [[ $(echo | "$BIN" config show | head -c1) == "{" ]] || fail "piped config show did not print JSON"

@@ -8,7 +8,7 @@
 
 **Plan status:** a draft. The order below is a suggestion.
 
-## Where we left off (2026-10-23, Task 1 done, try-out fixes done)
+## Where we left off (2026-10-23, Tasks 1 and 2 done)
 
 The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. The Phase 4 end-of-phase review was skipped.
 
@@ -20,7 +20,9 @@ Task 1: `migration/migrate.sh <knowledge-base>` is written and was tried on a ma
 - Period completion: `summary` (previous week, current and previous quarter and year), `goal list`/`effort list` (previous, current and next quarter, current and next year).
 - `add` and `start` print the note path in `note`, as every command printing a task does.
 
-Skipped: the effort slug rule (its hint suggests `ztkswitch` for `ZtkSwitch`; minor). Next: Task 2 (repository skills and the skills check), then the rest of Task 3 on the same copy.
+Skipped: the effort slug rule (its hint suggests `ztkswitch` for `ZtkSwitch`; minor).
+
+Task 2: `skills/ztk`, `skills/ztk-summary`, `skills/ztk-planning` and `skills/AGENTS.md` are written, and the native smoke test checks every `` `ztk …` `` they mention against the binary's help (tried alone on `ztk2`: the real skills pass, planted misses are reported). The drafts of the in-place edits are under "Switch-day edits" below. Found on the way and fixed: `info` lacked `generateHelp`, so `ztk info --help` reported an unknown option. Next: Task 3, the skills tried on `/tmp/ztk-rehearsal`.
 
 How the script is put together (keep it this way):
 
@@ -52,6 +54,32 @@ Each task is one complete piece of functionality and ends with a commit. Tasks a
 2. **Repository skills and the skills check.** `skills/ztk/SKILL.md` (starting work with `info`, the Progress log fallback, the commands agents may run, notes written with their own tools, reading a paper), `skills/ztk-summary/SKILL.md`, `skills/ztk-planning/SKILL.md`, `skills/AGENTS.md`; the skills check in `scripts/native-smoke.sh`. Drafts of the three in-place edits (`start-session`, `finish-session`, `to-ztk`) are written into this plan for the user to apply on the switch day.
 3. **Try-out on the rehearsal copy.** Use `ztk2` with the skills on the migrated copy (symlinked into a scratch skills location, never `~/.claude/skills/`), fix what feels off, delete the copy.
 4. **Switch** (the user runs it, spec §12): the old weekly summary, commit, `migrate.sh`, review, `ztk2 check`, one link in nvim; skills symlinked and edited, old copies deleted, `AGENTS.md`/`CLAUDE.md` replaced, Telekasten pointed at `zettel/`; the bash script renamed `ztk.sh`, the binary installed as `ztk`. Then `migration/` is deleted.
+
+## Switch-day edits (drafts, applied by the user in `~/.claude/skills/`)
+
+**`start-session/SKILL.md`**: replace the two lines from "The user might provide a specific task ID." through "**Load files**: …" with:
+
+```
+Run `ztk info <task>` for the task the user names, `ztk current` otherwise.
+
+**Load files**: read the task's last sessions and its note (`note`), and its effort's note when it has one (`ztk effort info <slug>`). With no sessions on older work, the history is in the Progress log (`progress*.md` at the knowledge base's root).
+```
+
+**`finish-session/SKILL.md`**: replace "Updates the progress.md file and the files associated with the task." with "Records the session in the journal and updates the files associated with the task.", and add before "Once the files are updated":
+
+```
+**Record the session**: `ztk session add <task> --title "<one line>" --done "…" --now "…" --next "…"`, a few lines per part; the details belong in the note. The note's path is `note` in `ztk info <task>`. Never write `progress.md`.
+```
+
+The three closing options stay; option 2 and 3 keep `ztk review <ID>` and `ztk done <ID>`.
+
+**`to-ztk/SKILL.md`**, step 5: publish each task with `ztk add <description> project:<Project> --effort <slug>` (`--effort` only when the plan belongs to an effort), and replace the `FILE=$(ztk touch <ID>)` line with:
+
+```
+**Execution:** `ztk add` prints the new task's note path (`note` in its JSON); write the template into it with the edit tool.
+```
+
+**`to-ztk/task-reviewer-prompt.md`**: replace `` **Spec for reference:** `ztk cat [TASK_ID]` `` with `` **Spec for reference:** the note at `note` in `ztk info [TASK_ID]` ``, and "read the notes via `ztk cat <ID>`" in `SKILL.md` step 6 with "read the notes from `ztk info <ID>`".
 
 ## Done when
 

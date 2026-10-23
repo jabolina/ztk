@@ -137,7 +137,7 @@ Type is inferred from location only, never from file names; existing notes need 
 - under `folder.journal` → journal
 - under `folder.summaries` → summary
 - under a project folder → task note if it has `task_uuid`, otherwise a project note
-- root-level `.md` files → `other` (indexed and searchable, but not typed further). This includes the bash tool's `progress*.md` and `Weekly-Status-*.md` until the migration moves them (§9).
+- root-level `.md` files → `other` (indexed and searchable, but not typed further). This includes the bash tool's `progress*.md`, kept there as the **Progress log**, and `Weekly-Status-*.md` until the migration moves them (§9).
 
 Tags are not a ztk concept: projects and efforts group work, and a zettel linking the notes of one topic (a structure note) groups knowledge. A `tags` frontmatter field in an existing note is left alone and not read.
 
@@ -321,8 +321,6 @@ All create/update commands are non-interactive when given their flags, so agents
 
 | Command | Behavior |
 |---|---|
-| `migrate [--dry-run]` | See §9. |
-| `install-skills [--target DIR]` | Symlinks `skills/*` into `~/.claude/skills/` (default). |
 | `config show` | Effective configuration. |
 | `help [command]`, `<command> --help` | Usage. |
 
@@ -384,35 +382,37 @@ The native binary keeps per-Tab latency low; the target is under 50 ms per call 
 ## 8. Error handling
 
 - **Taskwarrior failures:** exit 4, include `task`'s stderr; no partial writes (validate first, write last).
-- **Unreadable note:** warning on stderr (or in the JSON `warnings` array, each with `path`, `message` and `hint`), note skipped; other notes still load. Frontmatter that is not valid YAML is read through the fallback without a warning or a `check` problem: ztk reads it correctly, and the migration (§9) quotes the values other tools would misread.
+- **Unreadable note:** warning on stderr (or in the JSON `warnings` array, each with `path`, `message` and `hint`), note skipped; other notes still load. Frontmatter that is not valid YAML is read through the fallback without a warning or a `check` problem: ztk reads it correctly. The migration (§9) leaves it as it is.
 - **Writes:** new notes are created without overwriting an existing file. Updates to an existing note re-read it right before changing it (it may be open in nvim) and rewrite it in place, changing only its frontmatter: the body is kept byte for byte. Other frontmatter fields keep their values, though YAML may quote them differently.
 - **Validation:** unknown effort/goal/parent, missing project, or a duplicate slug → exit 3 with the valid options listed.
 - **No silent creation:** referencing a non-existent effort never auto-creates it.
 
-## 9. Migration (`ztk migrate`)
+## 9. Migration (one-time program, `migration/`)
 
-Runs idempotently; `--dry-run` prints every change without making it.
+Not a ztk command: a bash script, `migration/migrate.sh`, run once for one knowledge base and deleted once done (nothing left in it needs ztk's code: it moves files with `git mv` and sets `note` with `task modify`, defining the UDA on the command line as ztk does). It makes the changes below directly, by fixed rules. The knowledge base is a git repository holding the Taskwarrior database too, so the user commits before running it, reviews the result with `git diff` (moves show as renames), fixes small things by hand and reverts to that commit if anything goes badly wrong; `ztk check` runs afterwards. It never guesses: a case it cannot settle by rule (a task with several notes, a note of a deleted task) is printed and left unchanged, for the user to settle by hand.
 
-1. For each task without a `note` UDA: find a note with matching `task_uuid` and set `note`.
-2. Move root-level zettels (`.md` with a `uuid` frontmatter and no `task_uuid`, excluding known files such as `progress*.md`, `AGENTS.md`, `CLAUDE.md`, `Weekly-Status-*.md`, `000-Project-Index.md`) into `folder.zettel`.
-3. Report task projects that differ only by case (e.g. `infinispan` vs `Infinispan`) for manual fixing; never change them automatically.
-4. Move `Weekly-Status-YYYY-WW.md` to `summaries/YYYY-Www.md` (rename only) and `progress*.md` into `journal/` (open: split their `## YYYY-MM-DD: Project -- Title` entries into sessions, or move the files as they are).
-5. Rewrite every frontmatter `date` to ISO 8601 with offset, as ztk writes it (`2026-10-15T09:30:00+02:00`). The bash script wrote `date` output in several locale-dependent layouts (`Tue May 12 03:14:15 PM -03 2026`, `Sat 14 Mar 2026 …`, `Sun May 3 2026`), and some notes have no `date`; report the ones it cannot parse instead of guessing. Quote every frontmatter value that is not valid YAML as written (titles with `: `), so the reading fallback (§4.4) eventually covers nothing.
+1. For each task without a `note` UDA: find a note with matching `task_uuid` and set `note`. Taskwarrior sets `modified` to the day of the change, even through `task import`, so every open task looks touched that day: the migration runs on a Monday right after that week's summary is written, the next weekly summary is noisy, and the quarter's retrospective says so. The `untouched since` mark counts from the migration day.
+2. Move every root-level `.md` into `folder.zettel`, as it is, except the known files: `progress*.md` (the **Progress log**), `Weekly-Status-*.md` (step 3), `AGENTS.md` and `CLAUDE.md` (instructions agents look for at the root) and `000-Project-Index.md` (the user deletes it by hand, §6.4). A note without frontmatter moves too (on the real base, one troubleshooting note), and keeps its file name as its title.
+3. Move `Weekly-Status-YYYY-WW.md` to `summaries/YYYY-Www.md` (rename only, the week shifted back one from `2026-42` on, §13). `progress*.md` stay at the root as they are, the **Progress log**: their free-form entries have no Done/Now/Next to split by, and about 70 of 220 name no task; agents read them when `info` shows no sessions for a task worked before the switch.
 
-Wikilinks resolve by name, so moving files does not change link text. Before running step 3 for real, verify that Telekasten in nvim follows a bare-name link to a file in a subfolder (task notes in project subfolders are already linked this way), check which file it opens for a name present in several folders (ztk prefers the linking note's folder, §5),, and point Telekasten's new-note location at `zettel/`.
+Notes are never edited inside: frontmatter `date` keeps the bash script's layouts (`Tue May 12 03:14:15 PM -03 2026` and a few others, some notes without one) and unquoted titles stay unquoted. ztk never reads `date` and reads unquoted titles through the fallback (§4.4), so rewriting about 280 files would change no behavior; every note's content is byte-identical before and after, which the verification checks.
+
+Wikilinks resolve by name, so moving files does not change link text, and none of the moved names is used by another note, so no link opens a different file. After the run, `ztk check` must report no `dangling-link` it did not report before, and following one link to a moved zettel in nvim must open it in Telekasten; otherwise revert. Links already broken in Telekasten before the migration are out of its scope. On the switch day, the user points Telekasten's new-note location at `zettel/`.
 
 ## 10. Agent integration (bundled skills)
 
-Repository `skills/` folder, installed with `ztk install-skills`:
+`ztk`, `ztk-planning` and `ztk-summary` describe ztk's commands, so they live in the repository's `skills/` folder and change with the code; on the switch day the user symlinks each into `~/.claude/skills/` by hand (no `install-skills` command for a step done once). `start-session`, `finish-session` and `to-ztk` are the user's workflow skills and are edited in place in `~/.claude/skills/`. Every installed skill's description stays in each agent's context, so a skill exists only when it earns that: first the equivalents of the user's existing skills, then extras only when needed. `start-session` and `finish-session` stay separate from `ztk`: the user calls them by name, and agents do not remember the finishing steps from a reference.
 
 | Skill | Purpose |
 |---|---|
-| `ztk` | Everyday agent usage: `info <task>` at session start for the task the user names (its last sessions, note path and effort), writing `[[wikilinks]]` into notes with its own tools, `add` (prints the new task's note path)/`info` (a task's note path), `session add` at session end, `graph`/`search` for lookups, never run editor commands. Replaces `~/.claude/skills/ztk`. |
+| `start-session` | Unchanged (the user's counterpart of `tdd` for work without tests), except that it starts with `ztk info <task>` for the task named, `ztk current` otherwise. |
+| `finish-session` | Unchanged in purpose (agents forget what to update when finishing): writes the session with `session add` in place of `progress.md`, keeps the task's notes up to date, then asks whether to close, send for review with the PR link (`review`) or complete (`done`). |
+| `to-ztk` | Unchanged in approach (a plan broken into vertical-slice tasks); its commands updated to ztk's (`add … --effort`). |
+| `ztk` | Everyday agent usage: `info <task>` at session start for the task the user names (its last sessions, note path and effort), writing `[[wikilinks]]` into notes with its own tools, `add` (prints the new task's note path)/`info` (a task's note path), `session add` at session end, `graph`/`search` for lookups, never run editor commands. Agents run on their own the reads (`info`, `current`, `list`, `week`, `search`, `graph`, `check`, `goal`/`effort list|info`, `summary` without `--write`), `add` (saying which task it created), `session add`, `new`, `paper new` and writes into notes with their own tools; `start`, `stop`, `done` and `review` only when the user says so; goal and effort writes only inside `ztk-planning`, `summary --write` only inside `ztk-summary`; never `--editor`, nor `task` writes directly. A short part on reading a paper (`paper new` files the PDF and note; the agent writes the summary into the note, extracts atomic zettels with `new` linking back to the paper, and links them from the task notes that apply them), made a skill of its own only if it grows. Replaces `~/.claude/skills/ztk`. |
 | `ztk-planning` | Collaborative goal → effort → task flow, as a grill-me-style interview: read `goal list` + last quarter's `summary`; for a yearly goal, start from what was agreed with the manager; question the user one goal at a time until the goal is clear; create it with `goal new` and write every section of its template from the discussion; propose efforts one at a time, creating each only after agreement and writing its note; break an effort into tasks (`add … --effort`, `effort assign`) only after its note is agreed. The agent never creates goals or efforts without the user's explicit agreement. |
-| `ztk-papers` | Reading flow: `paper new` files the PDF and note; the agent reads the PDF, writes the summary into the note, extracts atomic zettels (`new`) that link back to the paper, and links them from the task notes that apply them. |
-| `ztk-summary` | Expand `summary <period> --json` into a narrative for weekly/quarterly/yearly reviews, using only gathered facts, show it to the user, then save facts and narrative together with `summary <period> --write --narrative -`. Replaces `weekly-summary`. |
+| `ztk-summary` | Expand `summary <period> --json` into a narrative for weekly/quarterly/yearly reviews, using only gathered facts, show it to the user, then, once approved, save facts and narrative together with `summary <period> --write --narrative -`; it never appends to a file. The weekly narrative keeps `weekly-summary`'s format exactly: `# Summary (<date range>)`, per project **Completed**, **Under Review**, **In Progress** (only those with content), bullets of the task title, a dash and the technical detail taken from the task's sessions (Done for completed tasks, Now/Next for those in progress), no emojis, and "task fully closed" for a task under review in the previous week's summary, read from `summaries/`. A quarter's or year's narrative is its **Retrospective**, written after interviewing the user one goal at a time (the reasoning is theirs): `# Retrospective (<period>)`, then a section per goal of the period (a year's yearly goals, citing their quarterly goals' verdicts) headed by its closing status, which the narrative explains and never sets: what it aimed for (its note), what happened (its efforts' `## Outcome` and the tasks' sessions), why the verdict, and how each carried-over effort was settled; then **General work** (a paragraph on the work outside the plan), **What didn't work** (approaches, estimates and habits that failed, across goals) and **Looking ahead** (what the next planning should take from it). Short paragraphs, not bullets: it is reasoning, not a list. A quarter or year starting before the switch also reads the **Progress log** for its dates. Replaces `weekly-summary`. |
 
-Also shipped: an `AGENTS.md` template for `data.location` that no longer tells agents to read `progress.md` at startup: they run `ztk info <task>` for the task they are given.
+Also shipped: `skills/AGENTS.md`, the knowledge base's agent instructions, copied over its `AGENTS.md` on the switch day. It merges what the knowledge base's `AGENTS.md` and `CLAUDE.md` hold today (they have drifted apart), rewritten for the new layout: no reading `progress.md` at startup (agents run `ztk info <task>` for the task they are given, and read the **Progress log** only for work before the switch). The user works with other agents too, so `AGENTS.md` holds everything and `CLAUDE.md` is the single line `@AGENTS.md`, which Claude Code reads as an import: Claude Code reads `CLAUDE.md`, not `AGENTS.md`.
 
 ## 11. Testing
 
@@ -421,14 +421,20 @@ Also shipped: an `AGENTS.md` template for `data.location` that no longer tells a
 - **Golden files:** JSON output of every read command. Shape changes require updating goldens and bumping `schema` if incompatible.
 - **CLI:** argument guard (`--help`, unknown flags have no side effects), exit codes, non-TTY editor refusal, and path-result commands printing a bare path on stdout in both TTY and non-TTY mode with human messages on stderr.
 - **Native smoke test** (`-Pnative`): build the binary, run `help`, completion, `search`, `graph`, `check` on a scratch knowledge base, create a yearly goal, a quarterly goal and an effort with tasks, and assert latency targets (completion under 50 ms, goal and effort completion included; `search`/`graph` under 300 ms on a generated 1,000-note knowledge base; `goal list`, `effort info` and `graph` from a goal under 300 ms), then write a session with a part from stdin, generate a 300-day journal, print and write summaries (a week, a quarter, a year; an ended quarter written, an open one refused), and assert `info` on a task whose few sessions make it read the journal back to its entry, a weekly and a quarterly `summary` under 300 ms, and `session add` completion under 50 ms).
+- **Skills check** (in the native smoke test): every `ztk <command> …` in backticks in `skills/*/SKILL.md` and `skills/AGENTS.md` names a command the binary's `help` lists, and each `--option` in it appears in that command's `--help`; a miss prints the skill file, the mention and what is missing. Skills are otherwise tested by use.
 
 ## 12. Rollout
 
 1. Spike: Æsh command parsing without the interactive console, plus a native-image build.
 2. Build as `ztk2` alongside the bash `ztk`, pointing at the real `~/cerebro` via config.
-3. `ztk2 migrate --dry-run`, review, then run it.
-4. Update skills and `AGENTS.md`; install the skills.
-5. Once the new tool matches the old one, install the binary as `ztk`, rename the bash script to `ztk.sh`, and keep it for one release cycle.
+3. Rehearse: copy the knowledge base (the Taskwarrior database included) to `/tmp`, run the migration there, review its `git diff --stat -M` and `ztk2 check` before and after, then use `ztk2` with the skills on that copy, through a `TASKRC` with `gc`, `recurrence` and `hooks` off, to see how the commands feel. Delete the copy afterwards.
+4. Switch on one Monday, all at once, in this order:
+   1. Write the previous week's summary the old way (bash `ztk` and the `weekly-summary` skill): its history is in `progress.md`, not in the journal. It becomes one more `Weekly-Status-*.md`.
+   2. Commit the knowledge base, run the migration (§9), review `git diff`, run `ztk2 check`, follow one moved link in nvim.
+   3. Symlink `skills/ztk`, `skills/ztk-planning` and `skills/ztk-summary` into `~/.claude/skills/` in place of the old `ztk` and `weekly-summary`, update `start-session`, `finish-session` and `to-ztk` in place, delete the old copies in the knowledge base's `.claude/skills/`, and rewrite its `AGENTS.md` and `CLAUDE.md` (§10); point Telekasten's new-note location at `zettel/`.
+   4. Rename the bash script to `ztk.sh` (kept for one release cycle) and install the binary as `ztk`; `ztk2` goes away.
+
+   From then on agents write sessions and `progress.md` is frozen as the **Progress log**; the next Monday's weekly review is the first `ztk summary`. If anything goes wrong after step 2, revert the knowledge base and keep the bash tool another week.
 
 Suggested build phases for the plan: (1) config + Taskwarrior + task commands, (2) vault + graph + search + notes, (3) goals/efforts, (4) sessions + reports, (5) migration + skills.
 
@@ -436,6 +442,6 @@ Suggested build phases for the plan: (1) config + Taskwarrior + task commands, (
 
 - Æsh vs Picocli: decided by the spike: Æsh.
 - Persistent graph cache: only if the latency targets in §5 are missed.
-- `progress*.md` migration: split into sessions or move as is (§9), decided in the migration phase.
-- `Weekly-Status-YYYY-WW.md` migration: the bash script named each file after the week it ran in, one after the week it covers; the move to `summaries/` should shift each back one week, to keep §6.3's naming.
+- `progress*.md` migration: resolved, kept at the root as they are (§9).
+- `Weekly-Status-YYYY-WW.md` migration: resolved. The bash script named each file after the week it covers until it broke around week 41 (no file covers it); from `Weekly-Status-2026-42.md` on, each file is named after the week it ran in. The move to `summaries/` keeps the week of files up to 40 and shifts later ones back one (`42` → `2026-W41`), to keep §6.3's naming.
 - Telekasten's choice among same-named notes in different folders, to compare with §5's same-folder rule.

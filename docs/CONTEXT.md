@@ -91,6 +91,14 @@ _Avoid_: progress entry
 The daily files holding sessions, one file per day.
 _Avoid_: progress file
 
+**Progress log**:
+The bash tool's history of work, `progress*.md`, kept as it was on the day of the **Switch** and never written again. Agents read it, through their own tools, when **Journal** holds nothing for a task worked before the switch; the yearly **Retrospective** of the switch's year reads it too. ztk does not parse it into sessions: it stays a root-level note, found by `search` like any other.
+_Avoid_: progress file (for the **Journal**)
+
+**Switch**:
+The one Monday the new tool replaces the bash tool, all at once: the last summary written the old way, the knowledge base migrated, the new skills installed, the binary installed as `ztk`. Before it, work is in the **Progress log**; from it, in the **Journal**.
+_Avoid_: cutover, go-live
+
 **Summary**:
 A report for a week, quarter or year: facts gathered by ztk by fixed rules, expanded into a narrative by an agent, and saved once as a file. A week's is the weekly review, of the week just ended; a quarter's or a year's is the **Retrospective** of its goals, written once they are closed.
 _Avoid_: weekly status, report file
@@ -143,6 +151,6 @@ How much a **Problem** matters: an error means something is broken and fails `ch
 
 ## Flagged ambiguities
 
-- "progress" (`progress*.md`) and "weekly status" (`Weekly-Status-*.md`) are the bash tool's forms of **Session** and **Summary**; the new terms replace them.
+- "progress" (`progress*.md`) and "weekly status" (`Weekly-Status-*.md`) are the bash tool's forms of **Session** and **Summary**; the new terms replace them. The old files stay as the **Progress log**, never converted into sessions.
 - "tags" appeared in the design as a way to group notes; resolved: not a ztk concept. Projects and efforts group work, **Structure notes** group knowledge.
 - "vault" is used in the design for the code that reads notes; the domain term is **Knowledge base**.

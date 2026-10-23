@@ -210,6 +210,22 @@ class SummaryCommandTest {
    }
 
    @Test
+   void aTaskChangedOnlyAfterTheWeekIsUntouchedWithoutADay() throws IOException {
+      imported("""
+            {"uuid":"dddddddd-0000-0000-0000-000000000001","description":"Changed later","status":"pending",
+             "project":"Gamma","tags":["week"],"entry":"20261001T100000Z","modified":"20261014T100000Z"}""");
+
+      Result result = run("summary", "2026-W41", "--human");
+
+      // Taskwarrior keeps only the last change, which says nothing of the week: no day is given.
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("- Changed later (untouched)\n");
+      // The JSON still tells the day it was last changed.
+      JsonNode gamma = JSON.readTree(run("summary", "2026-W41").out()).path("projects").get(2);
+      assertThat(gamma.path("progress").get(0).path("untouched").asString()).isEqualTo("2026-10-14");
+   }
+
+   @Test
    void summaryOfAWeekWithoutTasksSaysSo() {
       TestTaskwarrior empty = TestTaskwarrior.create(root.resolve("empty"));
 

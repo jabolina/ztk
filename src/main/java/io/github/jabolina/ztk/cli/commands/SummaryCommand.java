@@ -11,6 +11,7 @@ import org.aesh.command.option.Option;
 
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
+import io.github.jabolina.ztk.cli.completers.PeriodCompleter;
 import io.github.jabolina.ztk.reports.Summaries;
 import io.github.jabolina.ztk.reports.Summary;
 import tools.jackson.databind.node.ObjectNode;
@@ -41,9 +42,9 @@ public class SummaryCommand implements Command<ZtkInvocation> {
    // The conventional marker for "read this value from stdin".
    private static final String STDIN = "-";
 
-   // A period is never a file, so the shell offers none of the working directory's.
+   // A period is never a file: only periods are offered, none of the working directory's files.
    @Argument(description = "The ISO week, quarter or year, e.g. 2026-W42, 2026-Q4 or 2026",
-         completeFallback = CompletionFallback.NONE)
+         completer = PeriodCompleter.Summary.class, completeFallback = CompletionFallback.NONE)
    String period;
 
    @Option(hasValue = false, description = "Save the summary in the summaries folder and print its path")

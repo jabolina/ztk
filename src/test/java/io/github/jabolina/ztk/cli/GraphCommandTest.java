@@ -376,6 +376,17 @@ class GraphCommandTest {
    }
 
    @Test
+   void aNoteGivenWithItsExtensionIsFoundToo() throws IOException {
+      note("zettel/20261016-lamport-clocks.md", "A counter per process.\n");
+
+      // As a path copied from the file system or completed by the shell.
+      for (String form : List.of("note:zettel/20261016-lamport-clocks.md", "20261016-lamport-clocks.md")) {
+         Result result = CliHarness.run(taskwarrior.environment(), false, "graph", form, "--depth", "0");
+         assertThat(ids(result)).as(form).containsExactly("note:zettel/20261016-lamport-clocks");
+      }
+   }
+
+   @Test
    void aNameSeveralNotesHaveListsTheirIds() throws IOException {
       note("zettel/overview.md", "Concepts.\n");
       note("Alpha/overview.md", "What Alpha is.\n");

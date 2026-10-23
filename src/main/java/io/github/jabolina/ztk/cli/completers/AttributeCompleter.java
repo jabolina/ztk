@@ -6,7 +6,8 @@ import java.util.List;
  * Completes the Taskwarrior attributes among the words ztk passes to Taskwarrior, such as those of {@code ztk add}.
  *
  * <p>
- * A word starting with {@code project:} is completed with the projects that have pending tasks. Other words are free
+ * A word starting with {@code project:}, or the start of it, is completed with the projects that have pending tasks.
+ * A word starting with {@code +} is completed with the tags in use. Other words are free
  * text, such as the task description, and get no candidates.
  * </p>
  *
@@ -22,7 +23,9 @@ public class AttributeCompleter implements ZtkCompleter {
    public void complete(ZtkCompleterInvocation invocation) {
       String typed = invocation.getGivenCompleteValue();
       List<String> candidates = switch (typed)  {
-         case String s when s.startsWith(PROJECT) -> prefixed(PROJECT, invocation.context().store().projects());
+         // The start of the attribute too, e.g. proj: no description word is completed into a project by itself.
+         case String s when s.startsWith(PROJECT) || !s.isEmpty() && PROJECT.startsWith(s) ->
+               prefixed(PROJECT, invocation.context().store().projects());
          case String s when s.startsWith(TAG) -> prefixed(TAG, invocation.context().store().tags());
          default -> List.of();
       };

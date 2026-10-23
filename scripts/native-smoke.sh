@@ -27,12 +27,12 @@ if "$BIN" add x --force project:Smoke >/dev/null 2>&1; then fail "add accepted a
 echo "+ ztk config show | (piped)"
 [[ $(echo | "$BIN" config show | head -c1) == "{" ]] || fail "piped config show did not print JSON"
 
-# Task lifecycle. Piped output is JSON; commands producing a note report its path in "path".
+# Task lifecycle. Piped output is JSON; a task reports its note in "note", other commands producing a file in "path".
 echo "+ ztk add / start / current / stop / done"
-NOTE=$("$BIN" add "smoke task" project:Smoke +week | jq -r .path)
+NOTE=$("$BIN" add "smoke task" project:Smoke +week | jq -r .note)
 [[ -f "$NOTE" ]] || fail "add did not report the note path: $NOTE"
 "$BIN" add "second task" project:Smoke >/dev/null
-STARTED=$("$BIN" start 1 | jq -r .path)
+STARTED=$("$BIN" start 1 | jq -r .note)
 [[ "$STARTED" == "$NOTE" ]] || fail "start reported $STARTED, expected $NOTE"
 check "$BIN" current
 check "$BIN" week

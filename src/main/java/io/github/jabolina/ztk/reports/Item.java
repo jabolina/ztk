@@ -21,13 +21,13 @@ import tools.jackson.databind.node.ObjectNode;
  * @param goal      The ID of its effort's goal, when its effort names one.
  * @param sessions  Its sessions in the period, in the order they were written; empty when not gathered, as for the
  *                  work without an effort of a quarter or a year.
- * @param untouched The day it was last changed, when it is in without a sign of life in the period, e.g. a review
- *                  waiting on reviewers.
+ * @param untouched When it was last changed, if it is in without a sign of life in the period, e.g. a review waiting
+ *                  on reviewers.
  * @since 1.0
  * @author José Bolina
  */
 public record Item(Task task, Optional<Path> note, Optional<String> goal, Optional<List<Session>> sessions,
-                   Optional<LocalDate> untouched) implements JsonWritable {
+                   Optional<Untouched> untouched) implements JsonWritable {
 
    @Override
    public ObjectNode writeJson(ObjectNode target) {
@@ -37,7 +37,7 @@ public record Item(Task task, Optional<Path> note, Optional<String> goal, Option
       target.put("modified", task.modified().toString());
       target.put("started", task.started().map(Instant::toString).orElse(null));
       target.put("end", task.end().map(Instant::toString).orElse(null));
-      target.put("untouched", untouched.map(LocalDate::toString).orElse(null));
+      target.put("untouched", untouched.map(Untouched::day).map(LocalDate::toString).orElse(null));
       // Left out when not gathered, so an agent never takes it for a task without sessions.
       sessions.ifPresent(list -> {
          ArrayNode array = target.putArray("sessions");
@@ -61,7 +61,17 @@ public record Item(Task task, Optional<Path> note, Optional<String> goal, Option
                   + task.description() + "]]")
             .orElse(task.description()));
       details.forEach(detail -> target.append(" · ").append(detail));
-      untouched.ifPresent(day -> target.append(" (untouched since ").append(day).append(")"));
+      // A change after the period hides when the task was last changed before it, so no day is given then.
+      untouched.ifPresent(mark -> target.append(mark.later() ? " (untouched)" : " (untouched since " + mark.day() + ")"));
       return target.append("\n");
    }
+
+   /**
+    * When an untouched task was last changed.
+    *
+    * @param day   The day it was last changed.
+    * @param later Whether that day is after the period: Taskwarrior keeps only the last change, so the day then
+    *              says nothing of the period.
+    */
+   public record Untouched(LocalDate day, boolean later) { }
 }

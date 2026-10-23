@@ -8,9 +8,27 @@
 
 **Plan status:** a draft. The order below is a suggestion.
 
-## Where we left off (2026-10-22, designed)
+## Where we left off (2026-10-23, Task 1 done, try-out fixes done)
 
-The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. The Phase 4 end-of-phase review was skipped. Next: Task 1.
+The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. The Phase 4 end-of-phase review was skipped.
+
+Task 1: `migration/migrate.sh <knowledge-base>` is written and was tried on a made-up knowledge base in the scratchpad (root notes, weekly statuses with the shift, a task with one note, one with two, one with none, a note of a deleted task, a note with an empty `task_uuid`). The user rehearsed it on `/tmp/ztk-rehearsal` (kept for Task 3): 9 root notes and 34 weekly statuses moved as 100% renames, 262 tasks linked, the expected 21 cases printed (on stderr: run it with `2>&1 | tee`), and `check` unchanged. The try-out started early, through a scratchpad wrapper that refuses to run unless both configurations point at the copy. Fixes from it, done and checked on the copy with a new binary:
+
+- `graph` accepts a note's path or name ending in `.md`.
+- A task in a summary changed only after the period is marked `(untouched)`, without a day; the JSON keeps the day.
+- `add` offers `project:<name>` for a word that is the start of `project:`.
+- Period completion: `summary` (previous week, current and previous quarter and year), `goal list`/`effort list` (previous, current and next quarter, current and next year).
+- `add` and `start` print the note path in `note`, as every command printing a task does.
+
+Skipped: the effort slug rule (its hint suggests `ztkswitch` for `ZtkSwitch`; minor). Next: Task 2 (repository skills and the skills check), then the rest of Task 3 on the same copy.
+
+How the script is put together (keep it this way):
+
+- It refuses to run when Taskwarrior's `data.location` (after `TASKRC`/`TASKDATA`) is not the knowledge base, so a rehearsal never touches the real tasks. It does not require a clean tree: the rehearsal copy is thrown away uncommitted, and the switch starts with a commit.
+- `task_uuid` is read from every `.md` on disk, tracked or not (the copy has untracked notes).
+- Moves first, links last, so `note` holds each note's final path, relative to the knowledge base as `ztk add` writes it. Moves are staged by `git mv`; the database change is not.
+- Only the frontmatter is read for `task_uuid`. Exported fields are split by the unit separator, since `read` merges empty fields split by tabs.
+- The knowledge base's git tracks `taskchampion.sqlite3-shm` and `-wal`; Taskwarrior removes them at checkpoint, so they show as deleted in the diff.
 
 ## Decisions (summary; the spec has the details)
 

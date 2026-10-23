@@ -45,6 +45,7 @@ public final class KnowledgeGraph {
    private static final String NOTE = "note:";
    private static final String GOAL = "goal:";
    private static final String EFFORT = "effort:";
+   private static final String MARKDOWN = ".md";
 
    // Task numbers as Taskwarrior shows them; 0 is no task's.
    private static final Pattern NUMBER = Pattern.compile("[1-9]\\d*");
@@ -324,7 +325,7 @@ public final class KnowledgeGraph {
     * @param id the node ID as typed: {@code task:<uuid|short uuid|number>} or a bare number for a task,
     *           {@code project:<name>} for a project, {@code goal:<id>} or a bare goal ID for a goal,
     *           {@code effort:<slug>} for an effort, and {@code note:<path|name>} or a bare name for a note or an
-    *           effort.
+    *           effort; a note's path or name may end in {@code .md}.
     * @return the node with that ID.
     * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no node has that ID, and with
     *                      {@link ZtkException.Kind#VALIDATION} when it matches several.
@@ -349,7 +350,9 @@ public final class KnowledgeGraph {
       if (goal.isPresent()) {
          return goal.get();
       }
-      String name = id.startsWith(NOTE) ? id.substring(NOTE.length()) : id;
+      String typed = id.startsWith(NOTE) ? id.substring(NOTE.length()) : id;
+      // A path copied from the file system, or completed by the shell, ends in .md, which no note ID does.
+      String name = typed.endsWith(MARKDOWN) ? typed.substring(0, typed.length() - MARKDOWN.length()) : typed;
       // Its path first, which is also the name of a note at the root, then its name anywhere: as a wikilink
       // written at the root leads.
       NoteLinks exact = byId.get(NOTE + name);

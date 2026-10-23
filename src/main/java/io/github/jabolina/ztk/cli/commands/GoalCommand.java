@@ -15,6 +15,7 @@ import org.aesh.command.option.Option;
 import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.cli.completers.GoalCompleter;
+import io.github.jabolina.ztk.cli.completers.PeriodCompleter;
 import io.github.jabolina.ztk.cli.renderer.Table;
 import io.github.jabolina.ztk.planning.Efforts;
 import io.github.jabolina.ztk.planning.GoalStatus;
@@ -175,7 +176,7 @@ public class GoalCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "list", description = "List the goals of a year or quarter", generateHelp = true)
    public static final class ListGoals implements Command<ZtkInvocation> {
 
-      @Argument(description = "The year or quarter, e.g., 2026 or 2026-Q4; the current year when not given", completeFallback = CompletionFallback.NONE)
+      @Argument(description = "The year or quarter, e.g., 2026 or 2026-Q4; the current year when not given", completer = PeriodCompleter.class, completeFallback = CompletionFallback.NONE)
       String period;
 
       // The labels of GoalStatus, which a completion test keeps in step.

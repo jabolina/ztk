@@ -18,6 +18,7 @@ import io.github.jabolina.ztk.ZtkException;
 import io.github.jabolina.ztk.cli.ZtkInvocation;
 import io.github.jabolina.ztk.cli.completers.EffortCompleter;
 import io.github.jabolina.ztk.cli.completers.GoalCompleter;
+import io.github.jabolina.ztk.cli.completers.PeriodCompleter;
 import io.github.jabolina.ztk.cli.completers.TaskCompleter;
 import io.github.jabolina.ztk.cli.renderer.Table;
 import io.github.jabolina.ztk.planning.Effort;
@@ -200,7 +201,7 @@ public class EffortCommand implements Command<ZtkInvocation> {
    @CommandDefinition(name = "list", description = "List efforts with their tasks counted", generateHelp = true)
    public static final class ListEfforts implements Command<ZtkInvocation> {
 
-      @Argument(description = "The quarter or year of the efforts' goals, e.g., 2026-Q4 or 2026; open efforts of any quarter when not given", completeFallback = CompletionFallback.NONE)
+      @Argument(description = "The quarter or year of the efforts' goals, e.g., 2026-Q4 or 2026; open efforts of any quarter when not given", completer = PeriodCompleter.class, completeFallback = CompletionFallback.NONE)
       String period;
 
       // The labels of EffortStatus, which a completion test keeps in step.

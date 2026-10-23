@@ -63,7 +63,7 @@ class LifecycleCommandsTest {
       assertThat(json.path("schema").asInt()).isEqualTo(1);
       assertThat(json.path("id").asInt()).isEqualTo(1);
       assertThat(json.path("uuid").asString()).isEqualTo(task.uuid());
-      assertThat(json.path("path").asString())
+      assertThat(json.path("note").asString())
             .isEqualTo(taskwarrior.dataLocation().resolve(task.note().orElseThrow()).toString());
    }
 

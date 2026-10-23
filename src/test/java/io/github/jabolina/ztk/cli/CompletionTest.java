@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.temporal.IsoFields;
 import java.util.Arrays;
 import java.util.Properties;
 
@@ -72,6 +74,28 @@ class CompletionTest {
 
       assertThat(result.exitCode()).isZero();
       assertThat(result.out().lines()).containsExactly("project:Alpha");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "p", "proj", "project" })
+   void addCompletesTheStartOfProjectWithExistingProjects(String typed) {
+      taskwarrior.task("add", "first", "project:Alpha");
+      taskwarrior.task("add", "second", "project:Beta");
+
+      Result result = complete("add", "fix", "bug", typed);
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out().lines()).containsExactlyInAnyOrder("project:Alpha", "project:Beta");
+   }
+
+   @Test
+   void addOffersNothingForADescriptionWord() {
+      taskwarrior.task("add", "first", "project:Alpha");
+
+      Result result = complete("add", "fix", "bu");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out().lines()).doesNotContain("project:Alpha");
    }
 
    @Test
@@ -252,6 +276,43 @@ class CompletionTest {
    }
 
    @Test
+   void summaryOffersTheLastWeekAndTheCurrentAndPreviousQuarterAndYear() {
+      LocalDate today = LocalDate.now();
+
+      Result result = complete("summary", "");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out().lines()).containsExactlyInAnyOrder(week(today.minusWeeks(1)),
+            quarter(today.minusMonths(3)), quarter(today),
+            String.valueOf(today.getYear() - 1), String.valueOf(today.getYear()));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "goal list", "effort list" })
+   void planListingsOfferThePreviousCurrentAndNextQuarterAndTheCurrentAndNextYear(String command) {
+      LocalDate today = LocalDate.now();
+
+      Result result = complete(words(command, ""));
+
+      assertThat(result.exitCode()).isZero();
+      // Options are offered alongside, so only the periods are checked.
+      assertThat(result.out().lines()).contains(quarter(today.minusMonths(3)), quarter(today),
+            quarter(today.plusMonths(3)), String.valueOf(today.getYear()), String.valueOf(today.getYear() + 1));
+      assertThat(result.out().lines()).doesNotContain(String.valueOf(today.getYear() - 1));
+   }
+
+   @Test
+   void periodsAreFilteredByWhatWasTyped() {
+      String lastWeek = week(LocalDate.now().minusWeeks(1));
+
+      // Its year and the week marker, e.g. 2026-W.
+      Result result = complete("summary", lastWeek.substring(0, 6));
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out().lines()).containsExactly(lastWeek);
+   }
+
+   @Test
    void withoutGoalsGoalCompletionStaysQuiet() {
       Result result = complete("goal", "info", "");
 
@@ -331,6 +392,22 @@ class CompletionTest {
             date: 2026-10-05T09:00:00+01:00
             ---
             """.formatted(status));
+   }
+
+   /**
+    * @param day a day.
+    * @return the ISO week it is in, e.g. {@code 2026-W42}.
+    */
+   private static String week(LocalDate day) {
+      return "%d-W%02d".formatted(day.get(IsoFields.WEEK_BASED_YEAR), day.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR));
+   }
+
+   /**
+    * @param day a day.
+    * @return the quarter it is in, e.g. {@code 2026-Q4}.
+    */
+   private static String quarter(LocalDate day) {
+      return day.getYear() + "-Q" + day.get(IsoFields.QUARTER_OF_YEAR);
    }
 
    /**

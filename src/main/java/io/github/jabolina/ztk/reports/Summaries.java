@@ -264,14 +264,15 @@ public final class Summaries {
     * @param task a task in the summary.
     * @param activity the period.
     * @param sessions its sessions in the period; empty when not gathered.
-    * @return the task with its note, goal and sessions, and the day it was last changed when it shows no sign of life
-    *         in the period.
+    * @return the task with its note, goal and sessions, and when it was last changed if it shows no sign of life in
+    *         the period.
     */
    private Item item(Task task, Activity activity, Optional<List<Session>> sessions) {
       // Only an open task is in without a sign of life: a completed one is in for having ended in the period.
-      Optional<LocalDate> untouched = activity.alive(task)
+      Optional<Item.Untouched> untouched = activity.alive(task)
             ? Optional.empty()
-            : Optional.of(LocalDate.ofInstant(task.modified(), clock.getZone()));
+            : Optional.of(new Item.Untouched(LocalDate.ofInstant(task.modified(), clock.getZone()),
+                  !task.modified().isBefore(activity.to())));
       return new Item(task,
             task.note().map(configuration.dataLocation()::resolve),
             task.effort().flatMap(plan::effort).flatMap(Effort::goal),

@@ -72,7 +72,7 @@ public class AddCommand implements Command<ZtkInvocation> {
       invocation.printErr("Created task " + added.task().id() + ".");
 
       ObjectNode json = added.task().writeJson(invocation.jsonResult());
-      json.put("path", note.toString());
+      json.put("note", note.toString());
       invocation.result(note + System.lineSeparator(), json);
       return CommandResult.SUCCESS;
    }

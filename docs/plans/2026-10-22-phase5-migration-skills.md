@@ -8,7 +8,7 @@
 
 **Plan status:** a draft. The order below is a suggestion.
 
-## Where we left off (2026-10-23, Tasks 1 and 2 done)
+## Where we left off (2026-10-23, Tasks 1 to 3 done)
 
 The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. The Phase 4 end-of-phase review was skipped.
 
@@ -22,7 +22,7 @@ Task 1: `migration/migrate.sh <knowledge-base>` is written and was tried on a ma
 
 Skipped: the effort slug rule (its hint suggests `ztkswitch` for `ZtkSwitch`; minor).
 
-Task 2: `skills/ztk`, `skills/ztk-summary`, `skills/ztk-planning` and `skills/AGENTS.md` are written, and the native smoke test checks every `` `ztk …` `` they mention against the binary's help (tried alone on `ztk2`: the real skills pass, planted misses are reported). The drafts of the in-place edits are under "Switch-day edits" below. Found on the way and fixed: `info` lacked `generateHelp`, so `ztk info --help` reported an unknown option. Next: Task 3, the skills tried on `/tmp/ztk-rehearsal`.
+Task 2: `skills/ztk`, `skills/ztk-summary`, `skills/ztk-planning` and `skills/AGENTS.md` are written, and the native smoke test checks every `` `ztk …` `` they mention against the binary's help (tried alone on `ztk2`: the real skills pass, planted misses are reported). The drafts of the in-place edits are under "Switch-day edits" below. Found on the way and fixed: `info` lacked `generateHelp`, so `ztk info --help` reported an unknown option. Task 3: the skills were tried on the copy through a stand-in `ztk` that runs `ztk2` only there. Resuming a task worked; the agent fell back to the Progress log as meant (the copy has no sessions), but looked tasks up with `task … export`, so `ztk` and `AGENTS.md` now forbid `task` for reads too (`ztk info` takes a short UUID). An agent proposing `ztk begin` came from the old personal skills, which still load until the switch replaces them. Skills cannot be tested further before real use: they are adjusted as sessions after the switch show what is off. The copy is deleted. Next: Task 4, the switch, on a Monday.
 
 How the script is put together (keep it this way):
 

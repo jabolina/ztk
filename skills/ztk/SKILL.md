@@ -48,7 +48,7 @@ Each part is a few lines. Details belong in the task note. Any part can be `-` t
 | On your own | Only when the user says so | Never |
 |---|---|---|
 | Every read above | `ztk start <task>`, `ztk stop` | `--editor` or `-e` on any command |
-| `ztk add <description> project:<Project>`, then tell the user which task you created | `ztk done <task>`, `ztk review <task>` | Task writes through `task` directly |
+| `ztk add <description> project:<Project>`, then tell the user which task you created | `ztk done <task>`, `ztk review <task>` | `task` directly, for reads too: `ztk info <uuid>` takes a short UUID |
 | `ztk session add`, `ztk new`, `ztk paper new` | | |
 | Edits to notes with your own tools | | |
 

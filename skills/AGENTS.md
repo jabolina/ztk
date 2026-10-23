@@ -21,7 +21,7 @@ In a code project with the user, never:
 In the knowledge base, never:
 
 - run ztk with `--editor` or `-e`;
-- write tasks with `task` directly;
+- run `task` directly, for reads too: ztk reads and writes the tasks;
 - edit `journal/` or `summaries/`.
 
 ## Layout

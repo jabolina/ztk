@@ -432,7 +432,7 @@ Also shipped: `skills/AGENTS.md`, the knowledge base's agent instructions, copie
    1. Write the previous week's summary the old way (bash `ztk` and the `weekly-summary` skill): its history is in `progress.md`, not in the journal. It becomes one more `Weekly-Status-*.md`.
    2. Commit the knowledge base, run the migration (§9), review `git diff`, run `ztk2 check`, follow one moved link in nvim.
    3. Symlink `skills/ztk`, `skills/ztk-planning` and `skills/ztk-summary` into `~/.claude/skills/` in place of the old `ztk` and `weekly-summary`, update `start-session`, `finish-session` and `to-ztk` in place, delete the old copies in the knowledge base's `.claude/skills/`, and rewrite its `AGENTS.md` and `CLAUDE.md` (§10); point Telekasten's new-note location at `zettel/`.
-   4. Rename the bash script to `ztk.sh` (kept for one release cycle) and install the binary as `ztk`; `ztk2` goes away.
+   4. Rename the bash script to `ztk.sh` (kept for one release cycle) and install the binary as `ztk`, its zsh completion saved as `_ztk` on `fpath` (§7.2) in place of the bash script's; `ztk2` goes away.
 
    From then on agents write sessions and `progress.md` is frozen as the **Progress log**; the next Monday's weekly review is the first `ztk summary`. If anything goes wrong after step 2, revert the knowledge base and keep the bash tool another week.
 

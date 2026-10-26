@@ -8,7 +8,7 @@
 
 **Plan status:** a draft. The order below is a suggestion.
 
-## Where we left off (2026-10-23, Tasks 1 to 3 done)
+## Where we left off (2026-10-26, Tasks 1 to 4 done)
 
 The design was settled in an interview on 2026-10-22 and written into the spec and `CONTEXT.md`. The Phase 4 end-of-phase review was skipped.
 
@@ -22,7 +22,14 @@ Task 1: `migration/migrate.sh <knowledge-base>` is written and was tried on a ma
 
 Skipped: the effort slug rule (its hint suggests `ztkswitch` for `ZtkSwitch`; minor).
 
-Task 2: `skills/ztk`, `skills/ztk-summary`, `skills/ztk-planning` and `skills/AGENTS.md` are written, and the native smoke test checks every `` `ztk …` `` they mention against the binary's help (tried alone on `ztk2`: the real skills pass, planted misses are reported). The drafts of the in-place edits are under "Switch-day edits" below. Found on the way and fixed: `info` lacked `generateHelp`, so `ztk info --help` reported an unknown option. Task 3: the skills were tried on the copy through a stand-in `ztk` that runs `ztk2` only there. Resuming a task worked; the agent fell back to the Progress log as meant (the copy has no sessions), but looked tasks up with `task … export`, so `ztk` and `AGENTS.md` now forbid `task` for reads too (`ztk info` takes a short UUID). An agent proposing `ztk begin` came from the old personal skills, which still load until the switch replaces them. Skills cannot be tested further before real use: they are adjusted as sessions after the switch show what is off. The copy is deleted. Next: Task 4, the switch, on a Monday.
+Task 2: `skills/ztk`, `skills/ztk-summary`, `skills/ztk-planning` and `skills/AGENTS.md` are written, and the native smoke test checks every `` `ztk …` `` they mention against the binary's help (tried alone on `ztk2`: the real skills pass, planted misses are reported). The drafts of the in-place edits are under "Switch-day edits" below. Found on the way and fixed: `info` lacked `generateHelp`, so `ztk info --help` reported an unknown option. Task 3: the skills were tried on the copy through a stand-in `ztk` that runs `ztk2` only there. Resuming a task worked; the agent fell back to the Progress log as meant (the copy has no sessions), but looked tasks up with `task … export`, so `ztk` and `AGENTS.md` now forbid `task` for reads too (`ztk info` takes a short UUID). An agent proposing `ztk begin` came from the old personal skills, which still load until the switch replaces them. Skills cannot be tested further before real use: they are adjusted as sessions after the switch show what is off. The copy is deleted.
+
+Task 4: the switch ran on Monday 2026-10-26. The last weekly status was written the old way, the migration ran on `~/cerebro` (44 renames, the database change, `check` reviewed) and was committed there. The skills are symlinked, the in-place edits applied, the old copies deleted, `AGENTS.md`/`CLAUDE.md` replaced, the bash script renamed `ztk.sh` and the binary installed as `ztk`. Found on the way:
+
+- `ztk --aesh-completion zsh` is an autoload file ending in `_ztk "$@"`: sourced, it runs at shell start and fails with `can only be called from completion function`. It is saved as `~/.zsh/completions/_ztk`, with that directory added to `fpath` before oh-my-zsh runs `compinit`.
+- `ln -s` into the old `~/.claude/skills/ztk`, still a directory, made a link inside it, so the old skill kept loading. Move the old directory away first.
+
+Left open: Telekasten's `home` is still `~/cerebro` (it has no new-note location apart from `home`; zettels are made with `ztk new`), and the custom functions in `~/.config/nvim/init.lua` still look for task notes by `task_uuid` in root-level `*.md` only. The native image is still built as `target/ztk2` and copied to `~/.local/bin/ztk`. Next: the first `ztk summary` on 2026-11-02; the skills are adjusted as sessions show what is off.
 
 How the script is put together (keep it this way):
 
@@ -53,7 +60,7 @@ Each task is one complete piece of functionality and ends with a commit. Tasks a
 1. **Migration script and its rehearsal.** `migration/migrate.sh` with the three rules and the printed skipped cases, then a rehearsal: copy `~/cerebro` to `/tmp` (the Taskwarrior database included), commit nothing there beyond a baseline, run the script through a `TASKRC` with `gc`, `recurrence` and `hooks` off and `TASKDATA` pointing at the copy, and review `git diff --stat -M`, the skipped cases, and `ztk2 check` before and after. The rehearsal copy is kept for Task 3.
 2. **Repository skills and the skills check.** `skills/ztk/SKILL.md` (starting work with `info`, the Progress log fallback, the commands agents may run, notes written with their own tools, reading a paper), `skills/ztk-summary/SKILL.md`, `skills/ztk-planning/SKILL.md`, `skills/AGENTS.md`; the skills check in `scripts/native-smoke.sh`. Drafts of the three in-place edits (`start-session`, `finish-session`, `to-ztk`) are written into this plan for the user to apply on the switch day.
 3. **Try-out on the rehearsal copy.** Use `ztk2` with the skills on the migrated copy (symlinked into a scratch skills location, never `~/.claude/skills/`), fix what feels off, delete the copy.
-4. **Switch** (the user runs it, spec §12): the old weekly summary, commit, `migrate.sh`, review, `ztk2 check`, one link in nvim; skills symlinked and edited, old copies deleted, `AGENTS.md`/`CLAUDE.md` replaced, Telekasten pointed at `zettel/`; the bash script renamed `ztk.sh`, the binary installed as `ztk`. Then `migration/` is deleted.
+4. **Switch** (the user runs it, spec §12): the old weekly summary, commit, `migrate.sh`, review, `ztk2 check`, one link in nvim; skills symlinked and edited, old copies deleted, `AGENTS.md`/`CLAUDE.md` replaced, Telekasten pointed at `zettel/`; the bash script renamed `ztk.sh`, the binary installed as `ztk`, and completion saved with `ztk --aesh-completion zsh > ~/.zsh/completions/_ztk`, that directory added to `fpath` in `~/.zshrc` before `compinit`, in place of sourcing the bash script. The skill edits are under "Switch-day edits" below. Then `migration/` is deleted.
 
 ## Switch-day edits (drafts, applied by the user in `~/.claude/skills/`)
 

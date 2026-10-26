@@ -29,7 +29,9 @@ Task 4: the switch ran on Monday 2026-10-26. The last weekly status was written 
 - `ztk --aesh-completion zsh` is an autoload file ending in `_ztk "$@"`: sourced, it runs at shell start and fails with `can only be called from completion function`. It is saved as `~/.zsh/completions/_ztk`, with that directory added to `fpath` before oh-my-zsh runs `compinit`.
 - `ln -s` into the old `~/.claude/skills/ztk`, still a directory, made a link inside it, so the old skill kept loading. Move the old directory away first.
 
-Left open: Telekasten's `home` is still `~/cerebro` (it has no new-note location apart from `home`; zettels are made with `ztk new`), and the custom functions in `~/.config/nvim/init.lua` still look for task notes by `task_uuid` in root-level `*.md` only. The native image is built as `target/ztk` and copied to `~/.local/bin/ztk`. Next: the first `ztk summary` on 2026-11-02; the skills are adjusted as sessions show what is off.
+Left open: Telekasten's `home` is still `~/cerebro` (it has no new-note location apart from `home`; zettels are made with `ztk new`). The native image is built as `target/ztk` and copied to `~/.local/bin/ztk`.
+
+Next: a period of real use, starting with the first `ztk summary` on 2026-11-02; the user reports what is off, in the skills or the commands, and it is fixed as it comes. Once ztk has proven itself, a later phase makes the build reproducible and adds GitHub Actions that build the native image on Linux, macOS and Windows (one runner each: a native image is not cross-compiled) and publish a GitHub release with the binaries.
 
 How the script is put together (keep it this way):
 

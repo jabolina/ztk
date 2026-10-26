@@ -138,7 +138,7 @@
             </executions>
 
             <configuration>
-              <imageName>ztk2</imageName>
+              <imageName>ztk</imageName>
               <mainClass>${main.class}</mainClass>
               <buildArgs>
                 <buildArg>--no-fallback</buildArg>

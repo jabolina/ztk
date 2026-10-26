@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Smoke test for the native ztk binary, against a throwaway Taskwarrior and knowledge base. Never touches real data.
 #
-# Usage: scripts/native-smoke.sh [binary]   (default: target/ztk2)
+# Usage: scripts/native-smoke.sh [binary]   (default: target/ztk)
 set -euo pipefail
 
-BIN=$(realpath "${1:-target/ztk2}")
+BIN=$(realpath "${1:-target/ztk}")
 [[ -x "$BIN" ]] || { echo "No executable at $BIN. Build it with: mvn -q package -Pnative -DskipTests"; exit 1; }
 
 T=$(mktemp -d)

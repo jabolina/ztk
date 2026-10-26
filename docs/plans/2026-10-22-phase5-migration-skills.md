@@ -29,7 +29,7 @@ Task 4: the switch ran on Monday 2026-10-26. The last weekly status was written 
 - `ztk --aesh-completion zsh` is an autoload file ending in `_ztk "$@"`: sourced, it runs at shell start and fails with `can only be called from completion function`. It is saved as `~/.zsh/completions/_ztk`, with that directory added to `fpath` before oh-my-zsh runs `compinit`.
 - `ln -s` into the old `~/.claude/skills/ztk`, still a directory, made a link inside it, so the old skill kept loading. Move the old directory away first.
 
-Left open: Telekasten's `home` is still `~/cerebro` (it has no new-note location apart from `home`; zettels are made with `ztk new`), and the custom functions in `~/.config/nvim/init.lua` still look for task notes by `task_uuid` in root-level `*.md` only. The native image is still built as `target/ztk2` and copied to `~/.local/bin/ztk`. Next: the first `ztk summary` on 2026-11-02; the skills are adjusted as sessions show what is off.
+Left open: Telekasten's `home` is still `~/cerebro` (it has no new-note location apart from `home`; zettels are made with `ztk new`), and the custom functions in `~/.config/nvim/init.lua` still look for task notes by `task_uuid` in root-level `*.md` only. The native image is built as `target/ztk` and copied to `~/.local/bin/ztk`. Next: the first `ztk summary` on 2026-11-02; the skills are adjusted as sessions show what is off.
 
 How the script is put together (keep it this way):
 

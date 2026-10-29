@@ -250,13 +250,13 @@ class TasksTest {
    }
 
    @Test
-   void reviewTagsATaskThatIsNotActive() {
+   void reviewTagsATaskThatIsNotActiveAndMovesItToTheWeek() {
       TaskNote added = tasks.add(List.of("Fix flaky test", "project:Alpha"));
 
       Task reviewed = tasks.review(String.valueOf(added.task().id()));
 
       assertThat(reviewed.active()).isFalse();
-      assertThat(reviewed.tags()).containsExactly("review");
+      assertThat(reviewed.tags()).containsExactlyInAnyOrder("week", "review");
    }
 
    @Test

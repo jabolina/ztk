@@ -14,8 +14,8 @@ import io.github.jabolina.ztk.taskwarrior.Task;
  * {@code ztk review}: hands a task over for review, stopping it if it is active.
  *
  * <p>
- * The task keeps its other tags, so a task of the current week stays in the week while it waits for review. Starting
- * it again moves it out of review.
+ * The task joins the current week, so it waits for review in the week listing. Starting it again moves it out of
+ * review.
  * </p>
  *
  * <pre>

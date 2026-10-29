@@ -146,7 +146,7 @@ public final class Tasks {
    }
 
    /**
-    * Hands a task over for review: stops working on it and tags it for review, keeping it in the current week.
+    * Hands a task over for review: stops working on it and tags it for review in the current week.
     *
     * @param reference the task ID or UUID.
     * @return the reviewed task, as stored by Taskwarrior.
@@ -157,7 +157,7 @@ public final class Tasks {
       // Taskwarrior refuses to stop a task that is not started.
       if (task.active())
          store.stop(task);
-      store.modify(task, List.of("+review"));
+      store.modify(task, List.of("+week", "+review"));
       // Re-read: stopping removes the start time and the tags changed.
       return store.get(task.uuid());
    }

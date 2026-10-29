@@ -31,7 +31,7 @@ Task 4: the switch ran on Monday 2026-10-26. The last weekly status was written 
 
 Left open: Telekasten's `home` is still `~/cerebro` (it has no new-note location apart from `home`; zettels are made with `ztk new`). The native image is built as `target/ztk` and copied to `~/.local/bin/ztk`.
 
-Next: a period of real use, starting with the first `ztk summary` on 2026-11-02; the user reports what is off, in the skills or the commands, and it is fixed as it comes. Once ztk has proven itself, a later phase makes the build reproducible and adds GitHub Actions that build the native image on Linux, macOS and Windows (one runner each: a native image is not cross-compiled) and publish a GitHub release with the binaries.
+Next: a period of real use, starting with the first `ztk summary` on 2026-11-02; the user reports what is off, in the skills or the commands, and it is fixed as it comes. Fixed so far: `review` adds `+week` (2026-10-29; the script got it from the Taskwarrior `week` context's write filter, which ztk does not use). Once ztk has proven itself, a later phase makes the build reproducible and adds GitHub Actions that build the native image on Linux, macOS and Windows (one runner each: a native image is not cross-compiled) and publish a GitHub release with the binaries.
 
 How the script is put together (keep it this way):
 

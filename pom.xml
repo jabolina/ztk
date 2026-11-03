@@ -4,7 +4,7 @@
 
   <groupId>io.github.jabolina</groupId>
   <artifactId>ztk</artifactId>
-  <version>1.0.0.Final</version>
+  <version>1.0.1.Final-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>ztk</name>
@@ -14,7 +14,7 @@
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <!-- Dates the JAR's entries, so the same sources build the same JAR. The release workflow sets it to the release time. -->
-    <project.build.outputTimestamp>2026-11-03T17:54:57Z</project.build.outputTimestamp>
+    <project.build.outputTimestamp>2026-11-03T18:00:26Z</project.build.outputTimestamp>
 
     <version.aesh>3.18.5</version.aesh>
     <version.jackson>3.2.3</version.jackson>

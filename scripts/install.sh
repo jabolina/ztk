@@ -8,8 +8,9 @@
 #   ZTK_DIR       where to install; ~/.ztk when not set
 #   ZTK_RELEASES  where the releases are; the GitHub releases page when not set
 #
-# Each release holds one binary per platform, named ztk-<os>-<arch> (os: linux or macos; arch: x86_64 or aarch64),
-# next to its checksum, ztk-<os>-<arch>.sha256. Running the script again replaces the binary, which upgrades ztk.
+# Each release holds one binary per platform, named ztk-<os>-<arch>, next to its checksum, ztk-<os>-<arch>.sha256:
+# ztk-linux-x86_64, ztk-linux-aarch64 and ztk-macos-aarch64. GraalVM no longer ships for Intel Macs, so neither does ztk.
+# Running the script again replaces the binary, which upgrades ztk.
 #
 # Written for POSIX sh, so it runs piped into sh, bash or zsh.
 set -eu
@@ -39,6 +40,15 @@ platform() {
       aarch64 | arm64) arch=aarch64 ;;
       *) fail "$(uname -m) processors have no ztk release. Build it from source: https://github.com/jabolina/ztk#build" ;;
    esac
+
+   if [ "$os" = macos ] && [ "$arch" = x86_64 ]; then
+      # A terminal running under Rosetta reports x86_64 on Apple silicon, which runs the aarch64 binary.
+      if [ "$(sysctl -n hw.optional.arm64 2> /dev/null)" = 1 ]; then
+         arch=aarch64
+      else
+         fail "ztk has no release for Intel Macs, since GraalVM, which builds it, no longer supports them."
+      fi
+   fi
 
    printf 'ztk-%s-%s' "$os" "$arch"
 }

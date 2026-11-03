@@ -97,8 +97,7 @@ jobs:
             asset: ztk-linux-x86_64
           - runner: ubuntu-24.04-arm
             asset: ztk-linux-aarch64
-          - runner: macos-15-intel
-            asset: ztk-macos-x86_64
+          # No macOS x86_64: GraalVM no longer ships for Intel Macs.
           - runner: macos-15
             asset: ztk-macos-aarch64
     steps:

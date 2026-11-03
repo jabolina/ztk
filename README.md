@@ -14,7 +14,7 @@ their notes, notes to the papers and ideas they cite, and work to the goals it s
 
 ## Install
 
-On Linux or macOS:
+On Linux (x86_64 or ARM) or on a Mac with Apple silicon:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/jabolina/ztk/main/scripts/install.sh | sh

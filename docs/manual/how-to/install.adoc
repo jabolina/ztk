@@ -7,7 +7,7 @@ ztk needs https://taskwarrior.org[Taskwarrior] 3.0 or newer, as `task` on the `P
 
 == Install a release
 
-On Linux or macOS, on x86_64 or ARM processors, run:
+On Linux, on x86_64 or ARM processors, or on a Mac with Apple silicon, run:
 
 [source,console]
 ----

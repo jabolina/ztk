@@ -4,6 +4,8 @@
 This guide shows you how to complete ztk's commands, options, task IDs, projects, goals and efforts with Tab.
 ztk generates the script for your shell.
 
+If you installed ztk with the install script, completion is already set up.
+
 == zsh
 
 . Save the script as `_ztk` in a folder on your `fpath`, for example:

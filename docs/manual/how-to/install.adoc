@@ -1,14 +1,31 @@
 [[install]]
 = How to install and configure ztk
 
-This guide shows you how to build ztk, put it on your `PATH` and point it at your knowledge base.
+This guide shows you how to install ztk and point it at your knowledge base.
 
-== Prerequisites
+ztk needs https://taskwarrior.org[Taskwarrior] 3.0 or newer, as `task` on the `PATH`.
 
-* https://taskwarrior.org[Taskwarrior] 3.0 or newer, as `task` on the `PATH`.
-* https://www.graalvm.org[GraalVM] for Java 25, with `native-image`, and Maven.
+== Install a release
 
-== Build and install the binary
+On Linux or macOS, on x86_64 or ARM processors, run:
+
+[source,console]
+----
+$ curl -fsSL https://raw.githubusercontent.com/jabolina/ztk/main/scripts/install.sh | sh
+----
+
+The script downloads the latest release's binary for your platform, verifies its checksum, and installs it into `~/.ztk/bin`.
+It sets up shell completion, and adds a line to your `.zshrc` or `.bashrc` that puts ztk on the `PATH`.
+Open a new terminal afterwards.
+
+* To upgrade, run the same command again.
+* To install a given release, set `ZTK_VERSION` to its tag, as in `curl ... | ZTK_VERSION=v1.0.0 sh`.
+* To install somewhere else than `~/.ztk`, set `ZTK_DIR`.
+* With fish, the script prints the command that puts ztk on the `PATH`; run it once.
+
+== Build from source
+
+For other platforms, or to run unreleased changes, build ztk with https://www.graalvm.org[GraalVM] for Java 25, with `native-image`, and Maven.
 
 . Build the native binary from the repository's root:
 +
@@ -25,6 +42,8 @@ The binary is `target/ztk`.
 ----
 $ install -m 755 target/ztk ~/.local/bin/ztk
 ----
+
+. Enable shell completion, as in <<enable-completion,How to enable shell completion>>.
 
 == Configure the knowledge base
 

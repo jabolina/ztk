@@ -12,6 +12,17 @@ their notes, notes to the papers and ideas they cite, and work to the goals it s
 - **Facts, not prose.** Weekly, quarterly and yearly summaries come from what was recorded. ztk never calls an LLM.
 - **Native binary.** Java 25 compiled with GraalVM, so it starts instantly.
 
+## Install
+
+On Linux or macOS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/jabolina/ztk/main/scripts/install.sh | sh
+```
+
+It installs the latest release into `~/.ztk`, with shell completion. Run it again to upgrade. ztk needs
+[Taskwarrior](https://taskwarrior.org) 3.
+
 ## Documentation
 
 The [manual](docs/manual/manual.adoc) has tutorials, how-to guides, reference and explanation.
@@ -23,4 +34,4 @@ Build it as HTML with `mvn prepare-package -Pmanual`, into `target/doc/manual/ma
 mvn package -Pnative   # produces target/ztk
 ```
 
-Requires GraalVM for Java 25 and Taskwarrior on the `PATH`.
+Requires GraalVM for Java 25.

@@ -13,6 +13,8 @@
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Dates the JAR's entries, so the same sources build the same JAR. The release workflow sets it to the release time. -->
+    <project.build.outputTimestamp>2026-11-03T00:00:00Z</project.build.outputTimestamp>
 
     <version.aesh>3.18.5</version.aesh>
     <version.jackson>3.2.3</version.jackson>
@@ -146,6 +148,8 @@
                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
                 <!-- aesh-readline's terminal layer uses FFM downcalls on GraalVM 25+ -->
                 <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
+                <!-- Native Image targets recent CPUs by default; released binaries must run on any CPU of their architecture -->
+                <buildArg>-march=compatibility</buildArg>
               </buildArgs>
             </configuration>
           </plugin>

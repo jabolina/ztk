@@ -1,0 +1,191 @@
+# Releases ztk: tags the release version, builds the native binary on every platform, publishes them as a GitHub
+# release, and moves the branch to the next development version.
+#
+# Run it from the Actions tab, on the branch to release; the commits and the tag go to that branch.
+# The binaries are named as scripts/install.sh expects: ztk-<os>-<arch>, each next to its ztk-<os>-<arch>.sha256.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      releaseVersion:
+        description: "The version to release, e.g. 1.0.0.Final or 1.1.0.Alpha1. The tag drops .Final: v1.0.0"
+        required: true
+        type: string
+      nextVersion:
+        description: "The next development version, e.g. 1.1.0.Final-SNAPSHOT"
+        required: true
+        type: string
+      prerelease:
+        description: "Publish as a pre-release, which the install script installs only when ZTK_VERSION names it"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One release at a time: two would both move the branch.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  MAVEN_ARGS: --batch-mode --no-transfer-progress
+  VERSIONS_PLUGIN: org.codehaus.mojo:versions-maven-plugin:2.21.0
+  RELEASE_VERSION: ${{ inputs.releaseVersion }}
+  NEXT_VERSION: ${{ inputs.nextVersion }}
+
+jobs:
+  tag:
+    name: Tag ${{ inputs.releaseVersion }}
+    runs-on: ubuntu-24.04
+    if: github.ref_type == 'branch'
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.validate.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate the versions
+        id: validate
+        run: |
+          case "$RELEASE_VERSION" in
+            *-SNAPSHOT) echo "::error::The release version $RELEASE_VERSION is a snapshot; give the version to release, e.g. 1.0.0.Final."; exit 1 ;;
+          esac
+          case "$NEXT_VERSION" in
+            *-SNAPSHOT) ;;
+            *) echo "::error::The next version $NEXT_VERSION must end with -SNAPSHOT, e.g. 1.1.0.Final-SNAPSHOT."; exit 1 ;;
+          esac
+
+          tag="v${RELEASE_VERSION%.Final}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            echo "::error::The tag $tag already exists. Release another version, or delete the tag and its release first."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Commit the release version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898237+github-actions[bot]@users.noreply.github.com"
+          mvn "${VERSIONS_PLUGIN}:set" -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false
+          mvn "${VERSIONS_PLUGIN}:set-property" -Dproperty=project.build.outputTimestamp \
+            -DnewVersion="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -DgenerateBackupPoms=false
+          git commit -am "Releasing version $RELEASE_VERSION"
+
+      - name: Tag and push
+        env:
+          TAG: ${{ steps.validate.outputs.tag }}
+        run: |
+          git tag -a "$TAG" -m "Release $RELEASE_VERSION"
+          # Atomic: either the branch and the tag both move, or neither does.
+          git push --atomic origin "HEAD:refs/heads/$GITHUB_REF_NAME" "refs/tags/$TAG"
+
+  build:
+    name: Build ${{ matrix.asset }}
+    needs: tag
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      # A failed platform should not cancel the others: re-running the failed job is then enough.
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            asset: ztk-linux-x86_64
+          - runner: ubuntu-24.04-arm
+            asset: ztk-linux-aarch64
+          - runner: macos-15-intel
+            asset: ztk-macos-x86_64
+          - runner: macos-15
+            asset: ztk-macos-aarch64
+    steps:
+      - name: Checkout ${{ needs.tag.outputs.tag }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@f70bc8032f90a104502824a54bcb94b6f01715bc # v1.6.8
+        with:
+          version: '25.4'
+          distribution: graalvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: maven
+
+      - name: Build the native binary
+        run: |
+          # Not every runner image ships Maven.
+          if ! command -v mvn > /dev/null; then
+            if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get install -y -qq maven; else brew install maven; fi
+          fi
+          mvn package -Pnative -DskipTests
+
+      - name: Check the binary and write its checksum
+        env:
+          ASSET: ${{ matrix.asset }}
+        run: |
+          target/ztk --help > /dev/null
+          mkdir dist
+          cp target/ztk "dist/$ASSET"
+          cd dist
+          shasum -a 256 "$ASSET" > "$ASSET.sha256"
+          cat "$ASSET.sha256"
+
+      - name: Upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    name: Publish ${{ needs.tag.outputs.tag }}
+    needs: [ tag, build ]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download the binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.tag.outputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          ls -l dist
+          flags=""
+          if [ "$PRERELEASE" = "true" ]; then flags="--prerelease"; fi
+          # shellcheck disable=SC2086
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "ztk $RELEASE_VERSION" --generate-notes $flags
+
+  next:
+    name: Move to ${{ inputs.nextVersion }}
+    needs: [ tag, release ]
+    # Once the tag is pushed, the branch holds the release version, so it moves on whatever happened to the release.
+    if: always() && needs.tag.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout ${{ github.ref_name }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The branch's tip, which holds the release commit pushed after this workflow started.
+          ref: ${{ github.ref_name }}
+
+      - name: Commit and push the next version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898237+github-actions[bot]@users.noreply.github.com"
+          mvn "${VERSIONS_PLUGIN}:set" -DnewVersion="$NEXT_VERSION" -DgenerateBackupPoms=false
+          git commit -am "Next version $NEXT_VERSION"
+          git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"

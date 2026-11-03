@@ -1,0 +1,48 @@
+[[set-up-agents]]
+= How to set up coding agents to use ztk
+
+This guide shows you how to let a coding agent, such as Claude Code, work with your tasks and notes through ztk.
+
+The repository's `skills/` folder holds three skills:
+
+`ztk`:: Everyday use: resuming a task, keeping its note, recording sessions, looking things up, reading papers.
+`ztk-planning`:: Planning goals, efforts and their tasks, together with you.
+`ztk-summary`:: Writing the weekly summary and the quarterly and yearly retrospectives.
+
+It also holds `skills/AGENTS.md`, instructions for agents working inside the knowledge base.
+
+== Install the skills
+
+Link each skill into your agent's skills folder, so they change with the repository.
+For Claude Code:
+
+[source,console]
+----
+$ for skill in ztk ztk-planning ztk-summary; do
+    ln -s "$PWD/skills/$skill" ~/.claude/skills/$skill
+  done
+----
+
+== Give agents the knowledge base's instructions
+
+. Copy `skills/AGENTS.md` to the root of your knowledge base, and adapt its layout section to your folders.
+
+. If you use Claude Code, which reads `CLAUDE.md` rather than `AGENTS.md`, create a `CLAUDE.md` next to it holding one line:
++
+[source]
+----
+@AGENTS.md
+----
+
+ztk does not index `AGENTS.md` and `CLAUDE.md` files as notes.
+
+== Check that it works
+
+Start an agent in any folder and ask it what you are working on.
+It should run `ztk current` and read the note it prints.
+
+== Keep agents away from your editor
+
+Commands with `--editor` refuse to run outside an interactive terminal, so an agent cannot open your editor by accident.
+Every command also prints JSON when its output is piped, which is how agents read it.
+See <<output,Output and exit codes>>.

@@ -1,0 +1,76 @@
+[[graph]]
+= Nodes, links and edges
+
+== Nodes
+
+Tasks, notes, projects, goals and efforts are the nodes of one graph.
+Each has a node ID, its kind followed by its name:
+
+[cols="1,2,3"]
+|===
+|Kind |Node ID |Example
+
+|`task` |`task:<uuid>` |`task:3143468a-fbad-4142-b6d5-819ca30d823a`
+|`note` |`note:<path without .md>` |`note:zettel/20261103-atomic-notes`
+|`project` |`project:<name>` |`project:Website`
+|`goal` |`goal:<goal ID>` |`goal:2026-Q4-G1`
+|`effort` |`effort:<slug>` |`effort:release-automation`
+|`dangling` |`dangling:<target>` |`dangling:style-guide`
+|===
+
+The path of a note is relative to `data.location`.
+A goal's or effort's own file is that goal or effort node, not a note node.
+A `dangling` node is the target of a wikilink that leads nowhere.
+
+ztk always prints the IDs above.
+As input, it also accepts:
+
+* a task's number, or `task:<number>`, or `task:<first 8 characters of its UUID>`;
+* a goal ID without `goal:`;
+* a note's or effort's name, with or without `note:` and `.md`, resolved like a wikilink written at the root.
+
+A name matching several notes exits with 3, listing their IDs; a name matching nothing exits with 2.
+
+== Wikilinks
+
+A wikilink is `[[target]]`, `[[target|alias]]` or `[[target#heading]]`.
+The target is the text before any `|` or `#`, trimmed.
+Wikilinks inside fenced code blocks, inline code and frontmatter are ignored.
+
+The target matches a note's file name without `.md`, exactly and with case.
+It resolves in this order:
+
+. a note of that name in the linking note's own folder;
+. otherwise, every note of that name: with more than one, the link is ambiguous, and leads to all of them;
+. otherwise, a task whose UUID, full or its first 8 characters, is the target;
+. otherwise, the link is dangling.
+
+== Edges
+
+All edges come from the notes and tasks themselves; nothing is kept on the side.
+
+[cols="1,2,3"]
+|===
+|Edge |Between |From
+
+|`link` |a note and a note, task, goal or effort |A wikilink.
+|`note` |a task and its note |The task's `note` attribute, else the note's `task_uuid`.
+|`project` |a task and its project |The task's project.
+|`effort` |a task and its effort |The task's `effort` attribute.
+|`goal` |an effort and its quarterly goal; a quarterly goal and its yearly goal |The `goal` and `parent` fields.
+|===
+
+Each edge is followed both ways.
+A `link` reached from the linking note has direction `out`; reached from the target, `in`.
+
+== The walk
+
+`graph` walks breadth-first from its start node, and lists each node once, at its shortest distance.
+
+* Projects are reached but not walked through, unless they are the start node.
+* Journal and summary notes are neither listed nor walked through. As the start node, they list what they link to.
+* Dangling nodes are listed but not walked through, and cannot be the start node.
+
+In JSON, each node has `id`, `kind`, `title`, `path`, `depth` and `via`: the `from` node, `edge` and `direction` that reached it, or `null` for the start node.
+Notes add `type`; tasks, goals and efforts add `status`.
+The list is followed by `warnings`, `truncated` and `hint`.

@@ -1,0 +1,234 @@
+[[first-steps]]
+= First steps
+
+In this tutorial we will set up a small knowledge base, add a task, write in its note, link it to a zettel, record a work session, and then find all of it again.
+By the end, we will have used the commands ztk users run every day.
+
+We need ztk and Taskwarrior 3 installed.
+If ztk is not installed yet, follow <<install,How to install and configure ztk>> first.
+
+TIP: Your own tasks stay safe: in this tutorial ztk uses a Taskwarrior database of its own, inside the tutorial folder.
+
+== Create a knowledge base
+
+We start with an empty folder for the notes, and a configuration that points ztk at it:
+
+[source,console]
+----
+$ mkdir -p ~/ztk-tutorial/notes ~/ztk-tutorial/tasks
+$ cd ~/ztk-tutorial
+$ printf 'data.location=%s\n' ~/ztk-tutorial/tasks > taskrc
+$ cat > ztkrc <<EOF
+data.location=~/ztk-tutorial/notes
+task.rc=~/ztk-tutorial/taskrc
+task.data=~/ztk-tutorial/tasks
+EOF
+$ export ZTKRC=~/ztk-tutorial/ztkrc
+----
+
+Let's check that ztk reads it:
+
+[source,console]
+----
+$ ztk config show
+source: /home/you/ztk-tutorial/ztkrc
+data.location=/home/you/ztk-tutorial/notes
+folder.zettel=/home/you/ztk-tutorial/notes/zettel
+...
+----
+
+The first line names the file ztk read.
+The `folder.*` lines show where each kind of note will go.
+
+== Add a task
+
+Every task belongs to a project.
+We add one to a project called `Website`, and tag it for this week:
+
+[source,console]
+----
+$ ztk add Write the release notes project:Website +week
+Created task 1.
+/home/you/ztk-tutorial/notes/Website/20261103-write-the-release-notes.md
+----
+
+ztk created the task in Taskwarrior *and* a note for it, and printed the note's path.
+Let's add a second task:
+
+[source,console]
+----
+$ ztk add Fix the broken link checker project:Website
+Created task 2.
+/home/you/ztk-tutorial/notes/Website/20261103-fix-the-broken-link-checker.md
+----
+
+Now we list the pending tasks, most urgent first:
+
+[source,console]
+----
+$ ztk list
+ID Age Project Tag  Description                 Urg
+ 1   - Website week Write the release notes      1.8
+ 2   - Website      Fix the broken link checker    1
+----
+
+== Start working
+
+We start the first task:
+
+[source,console]
+----
+$ ztk start 1
+Started Task 1 ('Write the release notes').
+/home/you/ztk-tutorial/notes/Website/20261103-write-the-release-notes.md
+----
+
+`ztk current` shows what we are working on, with its note:
+
+[source,console]
+----
+$ ztk current
+Task 1 ('Write the release notes')
+  Note: /home/you/ztk-tutorial/notes/Website/20261103-write-the-release-notes.md
+----
+
+Let's open the note.
+It already holds a little frontmatter, linking it to its task:
+
+[source,markdown]
+----
+---
+title: Write the release notes
+date: 2026-11-03T11:07:13-03:00
+task_uuid: 3143468a-fbad-4142-b6d5-819ca30d823a
+project: Website
+issue: ""
+---
+
+# Notes
+----
+
+== Write a zettel and link it
+
+A zettel holds one idea.
+We create one:
+
+[source,console]
+----
+$ ztk new Atomic notes
+Created zettel 'Atomic notes'.
+/home/you/ztk-tutorial/notes/zettel/20261103-atomic-notes.md
+----
+
+Now we link the task note to the zettel.
+We add this line at the end of the task note, with any editor:
+
+[source,markdown]
+----
+Keep one idea per note, see [[20261103-atomic-notes]] and [[style-guide]].
+----
+
+A wikilink names a note by its file name, without `.md`.
+The second link, `style-guide`, names a note that does not exist yet.
+We will come back to it.
+
+== Find things again
+
+We search the notes for a phrase:
+
+[source,console]
+----
+$ ztk search "one idea"
+TYPE  TITLE                    PATH
+task  Write the release notes  /home/you/ztk-tutorial/notes/Website/20261103-write-the-release-notes.md
+      12: Keep one idea per note, see [[20261103-atomic-notes]] and [[style-guide]].
+----
+
+And we ask what surrounds task 1:
+
+[source,console]
+----
+$ ztk graph 1
+DEPTH  KIND      TYPE    TITLE                    PATH
+0      task              Write the release notes  .../Website/20261103-write-the-release-notes.md
+1      note      task    Write the release notes  .../Website/20261103-write-the-release-notes.md
+1      project           Website                  .../Website
+2      note      zettel  Atomic notes             .../zettel/20261103-atomic-notes.md
+2      dangling          style-guide
+----
+
+From the task, ztk walked to its note and its project, and then through the note's links to the zettel.
+The link to `style-guide` shows up as `dangling`: it leads nowhere.
+
+== Check the knowledge base
+
+`ztk check` reports what is broken:
+
+[source,console]
+----
+$ ztk check
+SEVERITY  CODE           PATH                                         MESSAGE
+ERROR     dangling-link  .../20261103-write-the-release-notes.md:12  Links to style-guide, which no note or task has. Write a note named style-guide.md, or correct the link.
+1 error found. Fix them, then run ztk check again.
+----
+
+We fix it the way the message says: we remove `and [[style-guide]]` from the task note.
+Running `ztk check` again prints no problems.
+
+== Record a session
+
+At the end of a work session, we write down what happened, so the next session starts where this one stopped:
+
+[source,console]
+----
+$ ztk session add 1 --title "First draft" \
+    --done "Drafted the highlights section." \
+    --now "Draft in the task note." \
+    --next "Ask the team for missing items."
+Session 2026-11-03#1 of Task 1 ('Write the release notes') written.
+/home/you/ztk-tutorial/notes/journal/2026-11-03.md
+----
+
+`ztk info` now shows the task with its note and its last sessions:
+
+[source,console]
+----
+$ ztk info 1
+Task 1 ('Write the release notes')
+  Note: /home/you/ztk-tutorial/notes/Website/20261103-write-the-release-notes.md
+  Sessions:
+    2026-11-03#1 · First draft
+      Done: Drafted the highlights section.
+      Now: Draft in the task note.
+      Next: Ask the team for missing items.
+----
+
+== Finish the task
+
+We hand the release notes over for review, and see that the task stays in this week's list:
+
+[source,console]
+----
+$ ztk review 1
+Task 1 ('Write the release notes') is ready for review.
+$ ztk week
+ID Project Description
+ 1 Website Write the release notes
+----
+
+Once the review is over, we complete it:
+
+[source,console]
+----
+$ ztk done 1
+Completed Task 3143468a ('Write the release notes').
+----
+
+Completed tasks have no ID any more, so ztk names it by the start of its UUID.
+
+== What we did
+
+We created a knowledge base, added tasks that came with their notes, linked a task note to a zettel, found both through `search` and `graph`, fixed a broken link that `check` found, and recorded a session that `info` gave back.
+
+Next, <<planning-a-quarter,Planning a quarter>> groups tasks under goals.
+To remove the tutorial's files, delete `~/ztk-tutorial` and unset `ZTKRC`.

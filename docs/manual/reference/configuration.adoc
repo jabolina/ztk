@@ -1,0 +1,91 @@
+[[configuration]]
+= Configuration
+
+== File location
+
+ztk reads the first of these files that exists:
+
+. the file given with `--config <path>`;
+. the file named by `$ZTKRC`;
+. `$XDG_CONFIG_HOME/ztk/ztkrc`, or `~/.config/ztk/ztkrc` when `XDG_CONFIG_HOME` is not set;
+. `~/.ztkrc`.
+
+When none exists, or `data.location` is missing or not a directory, every command except `--help` and `config show` exits with 1, naming the places it looked.
+
+== Format
+
+Java properties: one `key=value` per line.
+Lines starting with `#` are comments, and blank lines are ignored.
+A leading `~` in a value stands for the home directory.
+Unknown keys are ignored.
+
+[source,properties]
+----
+# ~/.config/ztk/ztkrc
+data.location=~/notes
+editor=nvim
+----
+
+== Keys
+
+[cols="2,2,5"]
+|===
+|Key |Default |Meaning
+
+|`data.location`
+|_required_
+|The folder of the knowledge base. It must exist.
+
+|`task.command`
+|`task`
+|The Taskwarrior executable.
+
+|`task.rc`
+|_unset_
+|When set, passed to Taskwarrior as `TASKRC`.
+
+|`task.data`
+|_unset_
+|When set, passed to Taskwarrior as `TASKDATA`.
+
+|`editor`
+|`$EDITOR`, then `nvim`
+|The editor opened by `--editor`.
+
+|`folder.zettel`
+|`zettel`
+|The folder of zettels.
+
+|`folder.papers`
+|`papers`
+|The folder of papers.
+
+|`folder.goals`
+|`goals`
+|The folder of goals.
+
+|`folder.efforts`
+|`efforts`
+|The folder of efforts.
+
+|`folder.journal`
+|`journal`
+|The folder of the journal.
+
+|`folder.summaries`
+|`summaries`
+|The folder of summaries.
+|===
+
+Each `folder.*` value is a path relative to `data.location`, and may be nested, such as `notes/zettel`.
+An absolute path, a path leading outside `data.location`, or two keys naming the same folder are errors.
+
+The first segment of each `folder.*` is reserved.
+Every other top-level folder under `data.location` is a project folder, named after its Taskwarrior project.
+
+== Environment
+
+`ZTKRC`:: The configuration file, as above.
+`XDG_CONFIG_HOME`:: The base of the default configuration path.
+`EDITOR`:: The editor, when `editor` is not set.
+`NO_COLOR`:: When set, human output has no colors.

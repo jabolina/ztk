@@ -1,0 +1,362 @@
+[[commands]]
+= Commands
+
+[source]
+----
+ztk [--json | --human] [--config <path>] <command> [<arguments>]
+----
+
+Global options:
+
+`--json`:: Print JSON.
+`--human`:: Print human text, even when piped.
+`--config <path>`:: Read the configuration from this file.
+`-h`, `--help`:: Print the usage of ztk or of a command.
+
+Where a command takes a task, give its number or its UUID, full or the first 8 characters.
+Output modes and exit codes are in <<output,Output and exit codes>>.
+
+== Tasks
+
+=== add
+
+[source]
+----
+ztk add [--effort <slug>] <description> project:<name> [<attribute>...]
+----
+
+Adds a task and creates its note, `<project>/<YYYYMMDD>-<slug>.md`, and prints the note's path.
+
+* The words form the description; Taskwarrior attributes and tags among them, such as `due:friday` or `+week`, are passed on to Taskwarrior.
+* `project:<name>` is required.
+* `--effort <slug>` joins the task to an effort, which must exist and be `planned` or `active`. An `effort:` attribute is refused: use the option.
+
+=== start
+
+[source]
+----
+ztk start [-e | --editor] <task>
+----
+
+Starts a task, tags it `+week`, removes `+review`, and prints its note's path.
+
+* Only one task can be active: starting another one is refused, naming the active task. Starting the active task again succeeds.
+* Finds the note by the task's `note` attribute, then by a note whose `task_uuid` is the task's, and links it. Creates the note when there is none; the task then needs a project.
+* `--editor` also opens the note. It is refused outside an interactive session.
+
+=== stop
+
+[source]
+----
+ztk stop
+----
+
+Stops every active task and lists them.
+Nothing active is not an error.
+
+=== review
+
+[source]
+----
+ztk review <task>
+----
+
+Stops the task if it is active, and tags it `+review` and `+week`.
+
+=== done
+
+[source]
+----
+ztk done <task>
+----
+
+Completes the task, stopping it if it is active, and removes `+week`.
+A task already completed is refused.
+
+=== current
+
+[source]
+----
+ztk current
+----
+
+Lists the active tasks with their notes' paths.
+A task started outside ztk may have no note; `ztk start <task>` links or creates it.
+
+=== info
+
+[source]
+----
+ztk info <task>
+----
+
+Shows a task in any status, its effort, its note's path and its last three sessions, newest first.
+
+=== list
+
+[source]
+----
+ztk list [<project>]
+----
+
+Lists the pending tasks that are not waiting, most urgent first, through Taskwarrior's `next` report, without a limit.
+A project includes its subprojects.
+
+=== week
+
+[source]
+----
+ztk week [<project>]
+----
+
+Lists the pending tasks tagged `+week`, tasks for review included.
+A project includes its subprojects.
+
+== Notes
+
+=== new
+
+[source]
+----
+ztk new [-e | --editor] <title>
+----
+
+Creates a zettel, `<folder.zettel>/<YYYYMMDD>-<slug>.md`, and prints its path.
+A title already used that day gets a numbered file name; nothing is overwritten.
+`--editor` also opens it, and is refused outside an interactive session.
+
+=== paper new
+
+[source]
+----
+ztk paper new --title <title> [--venue <venue>] [--year <year>]
+              [--authors <authors>] [--link <link>] [-e | --editor] <pdf>
+----
+
+Copies a PDF to `<folder.papers>/<venue>/<year>/<slug>.pdf`, creates its note `<slug>.md` next to it, and prints the note's path.
+
+* `--venue` defaults to `others`, and `--year` to the current year.
+* The original PDF is never moved or deleted.
+* An existing PDF or note at the target is refused.
+
+=== search
+
+[source]
+----
+ztk search [--type <types>] [--project <project>] <word>...
+----
+
+Lists the notes containing every word, anywhere in the body or the title, ignoring case.
+Quoted words match as a phrase.
+
+* `--type`: only notes of these types, comma-separated. Types are listed in <<note-types,Note types>>.
+* `--project`: only the notes in this project's folder.
+
+Results come in this order: title matches first, then notes with more matching lines, then the most recently modified.
+Each shows up to three matching lines.
+
+=== graph
+
+[source]
+----
+ztk graph [--depth <n>] [--kind <kinds>] [--type <types>]
+          [--edges <edges>] [--limit <n>] <node>
+----
+
+Lists the nodes around a node, nearest first, each with the edge that reached it.
+
+[cols="1,1,4"]
+|===
+|Option |Default |Meaning
+
+|`--depth` |`2` |How many edges away to go.
+|`--kind` |all |Only walk through nodes of these kinds: `note`, `task`, `project`, `goal`, `effort`, `dangling`.
+|`--type` |all |Only walk through notes of these types. Nodes that are not notes are kept.
+|`--edges` |all |Only follow these edges: `link`, `note`, `project`, `effort`, `goal`.
+|`--limit` |`50` |List at most this many nodes. A cut list says so, with a hint to narrow it.
+|===
+
+The filters restrict the walk itself: a node left out is neither listed nor walked through.
+The start node is always listed.
+Node IDs, edges and how the walk treats projects and journal notes are in <<graph,Nodes, links and edges>>.
+
+=== check
+
+[source]
+----
+ztk check [--code <codes>] [--project <project>]
+----
+
+Reports broken links, tasks, goals and efforts.
+Exits with 3 if any error is reported.
+
+* `--code`: only problems with these codes, comma-separated.
+* `--project`: only problems of this project's tasks and of the notes in its folder.
+
+The codes are in <<problems,Problems reported by check>>.
+
+== Goals
+
+=== goal new
+
+[source]
+----
+ztk goal new --title <title> [--parent <goal>] [--slug <slug>] <period>
+----
+
+Creates a goal with status `open`, from its template, and prints its note's path.
+
+* `<period>`: a year, such as `2026`, for a yearly goal, or a quarter, such as `2026-Q4`, for a quarterly goal.
+* `--parent`: the yearly goal of a quarterly goal. Required for a quarterly goal, and it must be an open yearly goal of the same year.
+* `--slug`: the end of the file name. Derived from the title when not given.
+
+The goal's number is the highest used in its year or quarter, plus one.
+
+=== goal set
+
+[source]
+----
+ztk goal set [--status <status>] [--title <title>] [--parent <goal>] <goal>
+----
+
+Changes a goal's status, title or yearly goal.
+
+* `--status`: `open`, `reached`, `missed` or `dropped`. Closing writes today's date as `closed`; reopening removes it.
+* `--title`: the file name stays.
+* `--parent`: a quarterly goal's new yearly goal.
+
+Closing a goal is refused while open work is directly under it.
+
+=== goal list
+
+[source]
+----
+ztk goal list [--status <status>] [<period>]
+----
+
+Lists the goals of a year or quarter, the current year by default, quarterly goals under their yearly goal.
+The yearly goals of the listed quarterly goals are always listed.
+Each goal shows its number of efforts, and whether it needs closing.
+
+=== goal info
+
+[source]
+----
+ztk goal info <goal>
+----
+
+Shows a goal and what moves it forward: a yearly goal's quarterly goals, and a quarterly goal's efforts.
+
+== Efforts
+
+=== effort new
+
+[source]
+----
+ztk effort new --title <title> --goal <goal> <slug>
+----
+
+Creates an effort with status `planned`, from its template, and prints its note's path.
+
+* `<slug>`: lowercase letters, digits and dashes. It must not be the name of any note.
+* `--goal`: an open quarterly goal.
+
+=== effort set
+
+[source]
+----
+ztk effort set [--status <status>] [--title <title>] [--goal <goal>] <slug>
+----
+
+Changes an effort's status, title or goal.
+
+* `--status`: `planned`, `active`, `done` or `dropped`. Closing writes today's date as `closed`; reopening removes it.
+* `--title`: the file name stays.
+* `--goal`: a goal of a later quarter carries the effort over.
+
+Closing an effort is refused while it has pending tasks.
+
+=== effort list
+
+[source]
+----
+ztk effort list [--status <status>] [--goal <goal>] [<period>]
+----
+
+Lists efforts with their pending and completed tasks counted.
+
+* Without arguments: every `planned` or `active` effort of any quarter, carried-over ones marked.
+* `<period>`: the efforts whose goal is in that quarter, or in any quarter of that year, in any status.
+* `--goal`: the efforts of that quarterly goal, in any status.
+* `--status` narrows any of these.
+
+=== effort info
+
+[source]
+----
+ztk effort info <slug>
+----
+
+Shows an effort, its quarterly and yearly goals, and its tasks by status with their notes.
+
+=== effort assign
+
+[source]
+----
+ztk effort assign <slug> <task>...
+----
+
+Joins tasks to an effort.
+A pending task cannot join a closed effort.
+
+=== effort unassign
+
+[source]
+----
+ztk effort unassign <task>...
+----
+
+Takes tasks out of their effort, making them general work.
+
+== Sessions and summaries
+
+=== session add
+
+[source]
+----
+ztk session add --title <title> --done <text> --now <text> --next <text> <task>
+----
+
+Appends a session on a task to today's journal file and prints its path.
+
+* The task can be in any status but deleted.
+* Every part is required. A part given as `-` is read from stdin.
+* A part longer than three lines is written, with a warning that details belong in the task's note.
+
+=== summary
+
+[source]
+----
+ztk summary [--write] [--narrative <text>] [<period>]
+----
+
+Prints the facts of a period: an ISO week such as `2026-W42`, a quarter such as `2026-Q4`, or a year such as `2026`.
+Without a period, the previous ISO week.
+
+* `--write`: saves the summary to `<folder.summaries>/<period>.md` and prints its path.
+* `--narrative`: text written after the facts, below a `---` line, or `-` to read it from stdin. Needs `--write`.
+
+Writing is refused when the file exists, when the period has not ended, and, for a quarter or a year, while one of its goals needs closing.
+What a summary holds is in <<sessions-and-summaries,About sessions and summaries>>.
+
+== Configuration
+
+=== config show
+
+[source]
+----
+ztk config show
+----
+
+Prints the file the configuration came from, and the value in effect for every key.
+It runs without a configuration too, reporting where it looked.

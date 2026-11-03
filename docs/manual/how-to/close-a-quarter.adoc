@@ -1,0 +1,64 @@
+[[close-a-quarter]]
+= How to close a quarter
+
+This guide shows you how to close the goals of a quarter that has ended, settle its unfinished efforts, and save its retrospective.
+The examples close 2026-Q4.
+
+. See what is still open:
++
+[source,console]
+----
+$ ztk goal list 2026-Q4 --status open
+$ ztk effort list 2026-Q4
+----
++
+`ztk check --code needs-closing` lists every open goal whose period has ended.
+
+. Settle each effort that is neither `done` nor `dropped`. Either:
++
+* close it, after writing its note's `## Outcome` section:
++
+[source,console]
+----
+$ ztk effort set release-automation --status done
+----
+* or carry it over, by pointing it at a goal of a later quarter:
++
+[source,console]
+----
+$ ztk effort set release-automation --goal 2027-Q1-G1
+----
+
+. Finish, drop or move the pending tasks of the efforts you closed.
+ztk refuses to close an effort with pending tasks, and names them.
+
+. Close each quarterly goal with its verdict, `reached`, `missed` or `dropped`:
++
+[source,console]
+----
+$ ztk goal set 2026-Q4-G1 --status reached
+----
++
+If ztk refuses, it lists what is still open under the goal, each with the command that settles it.
+
+. Write the retrospective:
++
+[source,console]
+----
+$ ztk summary 2026-Q4 --write --narrative - < retrospective.md
+----
++
+With the `ztk-summary` skill installed, ask an agent for the quarter's retrospective instead: it interviews you one goal at a time and saves the result once you approve.
+
+== Closing a year
+
+Close a year after its fourth quarter, the same way: settle the quarterly goals first, then close each yearly goal with `ztk goal set 2026-G1 --status …`, then run `ztk summary 2026 --write`.
+
+== Reopening a goal
+
+To reopen a goal closed by mistake, set it back to `open`:
+
+[source,console]
+----
+$ ztk goal set 2026-Q4-G1 --status open
+----

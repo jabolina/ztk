@@ -1,0 +1,64 @@
+[[design]]
+= About ztk's design
+
+ztk brings two practices together.
+Getting Things Done keeps work out of your head and in a trusted list of tasks.
+A Zettelkasten keeps knowledge in small notes, one idea each, linked to each other.
+Work and knowledge feed each other: a task applies ideas from zettels, and doing it produces new ones.
+ztk's job is to keep both in one place and connect them.
+
+== Plain files, no database
+
+ztk has no storage of its own.
+Taskwarrior keeps the tasks, and Markdown files keep everything else: notes, goals, efforts, the journal and summaries.
+Every relation is derived from what is already there, such as a wikilink, a task's project or an effort's `goal` field, and ztk builds the graph again on each run.
+
+This costs some speed, and keeps the data simple.
+There is no index to rebuild or to fall out of date, and nothing is lost if ztk goes away.
+The notes stay readable in any editor, searchable with `grep`, and versioned with `git`.
+Telekasten in Neovim, or any editor that follows wikilinks, works on the same files.
+
+Keeping tasks in Taskwarrior follows the same idea.
+Taskwarrior already does urgency, recurrence, due dates and reports well.
+ztk adds only two attributes to a task: the path of its note, and its effort.
+
+== A note for every task
+
+The tool this one replaced, a shell script, created a task and its note in separate steps.
+Now `add` always creates the note, and `start` finds or creates it.
+The task points to its note through its `note` attribute, and the note to its task through `task_uuid`.
+`check` reports the cases where one side is lost.
+
+== Folders give notes their type
+
+A note's type comes from its folder, never from frontmatter.
+Notes written before ztk needed no edits, and a note's type cannot disagree with where it sits.
+
+Tags are left out on purpose.
+Projects and efforts group work, and a zettel linking the notes of one topic, a structure note, groups knowledge.
+
+== Links resolve the way you read them
+
+A wikilink first looks in its own folder, then everywhere.
+Two projects can each have a `summary.md`, and a link to `summary` from inside a project means that project's own.
+A link that still matches several notes is reported as ambiguous instead of picking one silently.
+
+== Built for agents as well as people
+
+Coding agents do much of the daily work around tasks now, and ztk treats them as first-class users:
+
+* Piped output is JSON with stable, versioned shapes, so agents never parse tables.
+* Commands print paths rather than contents. An agent reads a range, greps or edits a note with its own tools, and loads only what it needs.
+* Errors say what is wrong and which command to run next.
+* `--editor` refuses to run outside a terminal, so no agent opens an editor that waits forever.
+* Skills in the repository describe the commands and change with them.
+
+ztk itself never calls a language model.
+Agents use ztk; ztk does not use agents.
+Every fact it prints comes from the files and Taskwarrior by fixed rules, so the same data always gives the same output.
+
+== Validated before written
+
+ztk checks a change before making it, and refuses with a message naming the fix.
+A failed command leaves nothing half done.
+`check` and the planning commands share the same rules, so a change is refused for exactly what `check` would have reported after it.

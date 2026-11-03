@@ -1,0 +1,38 @@
+[[write-a-weekly-summary]]
+= How to write the weekly summary
+
+This guide shows you how to save the summary of the week that just ended, with a narrative on top of its facts.
+
+. Read the facts of the previous week:
++
+[source,console]
+----
+$ ztk summary
+----
++
+Without an argument, `summary` covers the previous ISO week, whatever day you run it.
+To cover a week you missed, name it: `ztk summary 2026-W42`.
+
+. Write the narrative.
+If an agent writes it, give it the JSON instead, which also holds the week's sessions:
++
+[source,console]
+----
+$ ztk summary --json
+----
++
+With the `ztk-summary` skill installed, ask the agent for the weekly summary: it reads the facts, shows you the narrative, and saves it once you approve.
+
+. Save the facts and the narrative together:
++
+[source,console]
+----
+$ ztk summary --write --narrative - < narrative.md
+~/notes/summaries/2026-W44.md
+----
++
+Without `--narrative`, only the facts are saved.
+
+A summary is written once.
+If the file already exists, ztk refuses and names it: edit that file, or delete it and write again.
+Only a week that has ended can be written.

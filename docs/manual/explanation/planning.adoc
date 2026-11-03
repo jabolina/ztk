@@ -1,0 +1,68 @@
+[[planning]]
+= About goals and efforts
+
+Tasks say what to do next.
+They do not say why, or whether this quarter's work adds up to anything.
+ztk's planning layer answers that with three levels above tasks.
+
+== Three levels
+
+A *yearly goal* is an outcome for the year, often agreed with a manager.
+It is open-ended on purpose: its note describes what success looks like, not metrics.
+
+A *quarterly goal* is a step toward a yearly goal, small enough to reach in three months and concrete enough to check.
+Its note lists what "done" means.
+
+An *effort* groups the tasks that move one quarterly goal forward.
+It is the working document: its note holds the approach and a dated log of decisions, which every work session reads before changing course.
+
+Tasks join an effort, or stay outside any.
+Work outside an effort, such as bug fixes, support and releases, is *general work*.
+It is normal and never flagged: most days hold some.
+
+== Why efforts and not projects
+
+Projects follow repositories and areas.
+Goals cut across them: one quarterly goal may need changes in three projects.
+An effort can hold tasks from any project, so the plan does not have to follow the shape of the code.
+
+== Statuses are set by you
+
+ztk never derives a status from tasks.
+An effort with every task done may still need its outcome written down, and a goal with every effort done may still have been missed.
+The status is a verdict, and only you can give it.
+
+Goals are `open`, `reached`, `missed` or `dropped`.
+`missed` means it was tried and not made; `dropped` means it stopped mattering.
+The difference matters in a retrospective, so ztk keeps both.
+
+Efforts are `planned`, `active`, `done` or `dropped`.
+
+Nothing is ever deleted.
+A goal or effort that no longer matters is dropped, and stays in the summaries of its period.
+
+== Closing is a review
+
+Open work never sits under something closed.
+ztk refuses to close a goal while an open effort is under it, or an effort while it has pending tasks, and lists each one.
+There is no way to force it.
+
+This makes closing a review: each piece of open work under a goal is finished, dropped or moved before the goal gets its verdict.
+Nothing slips silently into the next quarter.
+
+== Carrying an effort over
+
+Work often outlives its quarter.
+An effort has no quarter of its own: its quarter is its goal's.
+To carry it over, you point it at a goal of the next quarter.
+The file stays where it is, with its history and decisions.
+
+Until that happens, the effort is _carried over_: its goal's quarter has ended, and it is neither done nor dropped.
+ztk computes this, and shows it in `effort list` and the summaries.
+The old goal then needs closing, and the quarter's summary cannot be written until it is.
+
+== Numbers are never reused
+
+A goal's ID is its period and a number: `2026-Q4-G2`.
+Efforts, wikilinks and summaries refer to it.
+Reusing the number of a dropped goal would silently point them all at a different goal, so ztk always takes the next number.

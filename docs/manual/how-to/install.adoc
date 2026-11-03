@@ -1,0 +1,79 @@
+[[install]]
+= How to install and configure ztk
+
+This guide shows you how to build ztk, put it on your `PATH` and point it at your knowledge base.
+
+== Prerequisites
+
+* https://taskwarrior.org[Taskwarrior] 3.0 or newer, as `task` on the `PATH`.
+* https://www.graalvm.org[GraalVM] for Java 25, with `native-image`, and Maven.
+
+== Build and install the binary
+
+. Build the native binary from the repository's root:
++
+[source,console]
+----
+$ mvn package -Pnative -DskipTests
+----
++
+The binary is `target/ztk`.
+
+. Copy it to a folder on your `PATH`:
++
+[source,console]
+----
+$ install -m 755 target/ztk ~/.local/bin/ztk
+----
+
+== Configure the knowledge base
+
+. Create the configuration file at `~/.config/ztk/ztkrc`, naming the folder of your notes:
++
+[source,properties]
+----
+data.location=~/notes
+----
++
+The folder must exist.
+It may already hold Markdown notes: ztk reads them where they are.
+
+. Check what ztk read:
++
+[source,console]
+----
+$ ztk config show
+----
+
+To keep the configuration elsewhere, set `ZTKRC` to its path, or pass `--config <path>` to a single command.
+Every key is listed in <<configuration,Configuration>>.
+
+== Use a separate Taskwarrior database
+
+ztk uses your Taskwarrior configuration and data by default.
+To give it different ones, set `task.rc` and `task.data`:
+
+[source,properties]
+----
+data.location=~/notes
+task.rc=~/notes/.taskrc
+task.data=~/notes/.task
+----
+
+== Show ztk's fields in your own Taskwarrior reports
+
+ztk stores a task's note and effort in two Taskwarrior attributes, `note` and `effort`, and defines them only for its own commands.
+To see or filter them with `task` itself, add them to your `.taskrc`:
+
+[source,properties]
+----
+uda.note.type=string
+uda.note.label=Note
+uda.effort.type=string
+uda.effort.label=Effort
+----
+
+== Next steps
+
+* <<enable-completion,How to enable shell completion>>
+* <<set-up-agents,How to set up coding agents to use ztk>>

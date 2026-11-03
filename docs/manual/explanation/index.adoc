@@ -1,0 +1,9 @@
+== Explanation
+
+Background, and the reasons behind the design.
+
+include::./design.adoc[leveloffset=+2]
+
+include::./planning.adoc[leveloffset=+2]
+
+include::./sessions-and-summaries.adoc[leveloffset=+2]

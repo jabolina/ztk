@@ -1,0 +1,43 @@
+[[fix-check-problems]]
+= How to fix the problems check reports
+
+This guide shows you how to bring `ztk check` back to zero errors.
+
+. Run the check:
++
+[source,console]
+----
+$ ztk check
+----
++
+Each problem names its file, and line for links, then says what is wrong and how to fix it.
+`check` exits with 3 while any error is left; warnings alone exit with 0.
+
+. Narrow the list if it is long, by code or by project:
++
+[source,console]
+----
+$ ztk check --code dangling-link
+$ ztk check --project Website
+----
+
+. Fix each problem as its hint says.
+`check` never changes anything itself.
+The fixes for every code are in <<problems,Problems reported by check>>.
+
+. Run `ztk check` again.
+
+== Common cases
+
+A link points to a note that was renamed (`dangling-link`)::
+Correct the link to the note's new file name, without `.md`.
+
+A link matches notes in several folders (`ambiguous-link`)::
+Rename one of the notes, or move the linking note into the folder of the note it means: a link resolves to the note in its own folder first.
+
+A task's note was deleted (`missing-note`)::
+Restore the file, for example from your knowledge base's history.
+If the note was moved instead, point the task at its new path, relative to the knowledge base: `task <uuid> modify note:<path>`.
+
+A goal's period has ended (`needs-closing`)::
+Follow <<close-a-quarter,How to close a quarter>>.

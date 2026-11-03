@@ -12,6 +12,11 @@ their notes, notes to the papers and ideas they cite, and work to the goals it s
 - **Facts, not prose.** Weekly, quarterly and yearly summaries come from what was recorded. ztk never calls an LLM.
 - **Native binary.** Java 25 compiled with GraalVM, so it starts instantly.
 
+## Documentation
+
+The [manual](docs/manual/manual.adoc) has tutorials, how-to guides, reference and explanation.
+Build it as HTML with `mvn prepare-package -Pmanual`, into `target/doc/manual/manual.html`.
+
 ## Build
 
 ```sh

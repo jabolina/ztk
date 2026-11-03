@@ -1,0 +1,19 @@
+== How-to guides
+
+Directions for a goal you already have.
+
+include::./install.adoc[leveloffset=+2]
+
+include::./enable-completion.adoc[leveloffset=+2]
+
+include::./set-up-agents.adoc[leveloffset=+2]
+
+include::./file-a-paper.adoc[leveloffset=+2]
+
+include::./write-a-weekly-summary.adoc[leveloffset=+2]
+
+include::./close-a-quarter.adoc[leveloffset=+2]
+
+include::./fix-check-problems.adoc[leveloffset=+2]
+
+include::./script-with-json.adoc[leveloffset=+2]

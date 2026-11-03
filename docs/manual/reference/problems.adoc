@@ -1,0 +1,105 @@
+[[problems]]
+= Problems reported by check
+
+`ztk check` reports the problems below, each with a code, a severity, a message and a hint naming the fix.
+An *error* means something is broken, and makes `check` exit with 3.
+A *warning* means it works, but likely not as meant.
+
+The planning errors are also why ztk refuses a planning change: `goal new`, `goal set`, `effort new`, `effort set`, `effort assign` and `add --effort` refuse, with exit code 3, when the plan after the change would have an error it did not have before.
+
+== Notes and tasks
+
+[cols="2,1,4,4"]
+|===
+|Code |Severity |Reported when |Fix
+
+|`dangling-link`
+|error
+|A wikilink matches no note and no task.
+|Write a note of that name, or correct the link.
+
+|`ambiguous-link`
+|warning
+|A wikilink matches no note in its own folder, and several notes elsewhere. It leads to all of them.
+|Rename all but one of the candidates, or move the one meant into the linking note's folder.
+
+|`missing-note`
+|error
+|An open task's `note` attribute names a file that is not a readable note.
+|Restore the file, or run `task <uuid> modify note:<path relative to the knowledge base>`.
+
+|`task-without-project`
+|error
+|A pending or waiting task has no project.
+|`task <uuid> modify project:<name>`
+
+|`orphan-task-note`
+|warning
+|A note's `task_uuid` names no task.
+|Correct `task_uuid`, or remove it if the task was deleted.
+
+|`unreadable-note`
+|warning
+|A Markdown file could not be read, for example because it is not UTF-8 or has no read permission.
+|As the hint says for the cause.
+|===
+
+== Plan
+
+[cols="2,1,4,4"]
+|===
+|Code |Severity |Reported when |Fix
+
+|`invalid-status`
+|error
+|A goal's or effort's `status` is missing, or not one of its kind.
+|`ztk goal set` or `ztk effort set` with `--status`.
+
+|`missing-goal`
+|error
+|An effort has no `goal`, or a quarterly goal has no `parent`.
+|`ztk effort set <slug> --goal <goal>`, or `ztk goal set <goal> --parent <goal>`.
+
+|`unknown-goal`
+|error
+|A `goal` or `parent` names no goal, or a goal of the wrong level or year.
+|As for `missing-goal`.
+
+|`unknown-effort`
+|error
+|A task's `effort` names no effort. Completed tasks are included.
+|`ztk effort assign <slug> <uuid>`, or `ztk effort unassign <uuid>`.
+
+|`invalid-goal-name`
+|error
+|A `.md` file directly in a goal folder does not start with a goal ID of that folder.
+|Rename it to start with an unused goal ID, or move it into a subfolder to keep it as material.
+
+|`duplicate-goal`
+|error
+|Two files have the same goal ID.
+|Rename all but one to an unused number, then point what named them at the new IDs.
+
+|`open-under-closed`
+|error
+|Open work sits under a closed goal or effort: an open quarterly goal under a closed yearly goal, a planned or active effort under a closed quarterly goal, or a pending task in a closed effort. Reported once per open child.
+|Close the child, move it, or reopen the parent.
+
+|`needs-closing`
+|warning
+|A goal is `open`, but its year or quarter has ended.
+|`ztk goal set <goal> --status <reached\|missed\|dropped>`
+
+|`closed-mismatch`
+|warning
+|A goal or effort has a `closed` date with an open status, or a closed status without a `closed` date.
+|Set the status again with `ztk goal set` or `ztk effort set`: ztk writes or clears the date.
+|===
+
+== Output
+
+Problems are listed errors first, then by path and line.
+In JSON, each has `code`, `severity`, `id` (the node ID, or `null` for an unreadable note), `path`, `line` (for links only, otherwise `null`), `message`, `hint` and `candidates` (the node IDs of an ambiguous link, otherwise `null`).
+
+`--code` and `--project` filter what is reported; the whole knowledge base is always read.
+The exit code follows the reported problems only.

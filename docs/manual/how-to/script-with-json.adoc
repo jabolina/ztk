@@ -1,0 +1,64 @@
+[[script-with-json]]
+= How to script ztk with JSON
+
+This guide shows you how to use ztk's output from scripts.
+
+== Get JSON
+
+ztk prints JSON whenever its output is piped or redirected, so scripts get it without asking.
+To ask explicitly, pass `--json`:
+
+[source,console]
+----
+$ ztk --json current
+{"schema":1,"tasks":[]}
+----
+
+Read fields with `jq`, for example the note path of task 3:
+
+[source,console]
+----
+$ ztk info 3 | jq -r .note
+----
+
+== Get a bare path
+
+Commands that create a file print its path.
+To capture the path alone, without JSON, pass `--human`:
+
+[source,console]
+----
+$ NOTE=$(ztk --human add "Fix the build" project:Website)
+----
+
+ztk's messages, such as `Created task 4.`, go to stderr, so only the path is captured.
+
+== Open a task's note in your editor
+
+[source,console]
+----
+$ $EDITOR "$(ztk info 3 | jq -r .note)"
+----
+
+== Pick a note with fzf
+
+[source,console]
+----
+$ ztk search clocks | jq -r '.results[].path' | fzf | xargs -r $EDITOR
+----
+
+== Handle failures
+
+Check the exit code: `2` means not found, `3` a refusal or a problem found, `4` a Taskwarrior failure.
+The message on stderr says what to run next.
+See <<output,Output and exit codes>>.
+
+== Read text from stdin
+
+`session add` takes `-` for any of its parts, and `summary --write` takes `--narrative -`, to read that text from stdin:
+
+[source,console]
+----
+$ git log --oneline -5 | ztk session add 3 --title "Merged the fixes" \
+    --done - --now "All merged." --next "Release."
+----

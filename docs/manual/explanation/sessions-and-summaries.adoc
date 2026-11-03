@@ -1,0 +1,59 @@
+[[sessions-and-summaries]]
+= About sessions and summaries
+
+== Why sessions exist
+
+Work on a task rarely happens in one sitting.
+Whoever picks it up next, you after a weekend or an agent with no memory of yesterday, needs to know what was done, where things are, and what comes next.
+
+The tool before ztk kept that history in one long progress file.
+Every agent read all of it at the start of every session, unrelated work included, and every agent appended a little more.
+Entries grew longer, and the file slower to read.
+
+A session in ztk belongs to one task, and has a fixed shape: a title, then *Done*, *Now* and *Next*, each a few lines.
+ztk writes the labels and layout, and the writer gives only the content.
+The fixed shape keeps sessions short and comparable; details belong in the task's note, which is kept current instead of only appended to.
+
+`ztk info` gives a task's last three sessions with its note's path.
+That is everything needed to resume, and nothing else.
+
+== Why the journal is one file per day
+
+Sessions are stored by day, in `journal/`, not inside task notes.
+The journal is a log, written once and never edited, while the task note is a living document.
+Keeping them apart lets the note be rewritten freely without losing the history.
+
+Each session links its task by UUID, so editors can jump to it, and `check` notices if the task is gone.
+
+== Facts first, narrative second
+
+A summary has two parts.
+The facts are gathered by ztk by fixed rules: which tasks moved, which efforts and goals they belong to, what closed.
+The narrative is written on top of them, by you or by an agent, using only those facts.
+
+ztk never writes the narrative itself, since it never calls a language model.
+Keeping the facts deterministic means the same period always gives the same facts, and an agent cannot invent work that did not happen.
+
+== What a week holds
+
+A week's summary lists every task that showed a sign of life in it: completed, a session written, or changed in Taskwarrior.
+It also lists the tasks on the plate now, tagged `+week` or `+review`, even untouched, and marks them as such.
+
+Taskwarrior keeps only a task's latest state, so a past week's "in progress" and "under review" lists show the state on the day the summary is taken.
+That is why weekly summaries are written once, right after the week, and saved.
+
+Without a period, `ztk summary` covers the previous ISO week, whatever day it runs.
+A holiday moves the day you write the summary, never the week it covers.
+
+== What a quarter or year holds
+
+A quarter's or a year's summary follows the plan: each goal, its efforts, and their tasks, then general work by project.
+It is the base of the *retrospective*: what each goal aimed for, what happened, and why it got its verdict.
+
+Efforts that moved to a later goal during the review still appear in the period they were worked in, marked with the quarter they moved to, so their work does not vanish from it.
+
+== Written once, never overwritten
+
+A summary is saved only after its period ends, since an early file would miss the rest of the period for good.
+A quarter or year is saved only once its goals are closed, since the retrospective records those verdicts.
+An existing file is never overwritten: it is a record, and changing it is a deliberate edit, not a side effect.

@@ -1,0 +1,87 @@
+[[output]]
+= Output and exit codes
+
+== Human or JSON
+
+[cols="3,2"]
+|===
+|Situation |Output
+
+|stdin and stdout are both a terminal
+|Human text
+
+|stdin or stdout is piped or redirected
+|JSON
+
+|`--json` is given
+|JSON
+
+|`--human` is given
+|Human text
+|===
+
+`--json` and `--human` are global options, given before or after the command.
+Human output has colors only in an interactive session, and never when `NO_COLOR` is set.
+
+Messages for people, such as `Created task 3.`, always go to stderr.
+
+== JSON
+
+Every JSON document is one object with `"schema": 1`.
+The schema number changes only when a shape changes in an incompatible way.
+
+* Nodes are named by their canonical node ID, such as `task:<uuid>` or `note:Website/20261103-fix-build`. See <<graph,Nodes, links and edges>>.
+* Paths are absolute.
+* Missing values are `null`, never left out.
+
+=== Tasks
+
+Every command that prints tasks prints each one with the same fields:
+
+[cols="1,4"]
+|===
+|Field |Value
+
+|`id` |The task's number, or `0` once it is completed.
+|`uuid` |The task's full UUID.
+|`description` |The description.
+|`status` |`pending`, `waiting`, `completed`, `deleted` or `recurring`.
+|`project` |The project, or `null`.
+|`tags` |The tags, as a list.
+|`active` |Whether the task is started.
+|`issue` |The task's `issue` attribute, or `null`.
+|`effort` |The effort's slug, or `null` for general work.
+|===
+
+`info`, `effort info` and `summary` add `note`, the absolute path of the task's note or `null`.
+`info` also adds `sessions`, its last three sessions, newest first, each with `id`, `title`, `done`, `now` and `next`.
+
+=== Created files
+
+`new`, `paper new`, `goal new`, `effort new` and `summary --write` print the new file's `path`, with `id` when the file is a node.
+`new` adds the zettel's `uuid`, and `paper new` the `pdf` path.
+`add` and `start` print the task instead, with its note path in `note`.
+
+In human mode, these commands print only the bare path on stdout.
+
+== Exit codes
+
+[cols="1,5"]
+|===
+|Code |Meaning
+
+|`0` |Success. Empty results, such as no active task, are a success too.
+|`1` |Usage or configuration error: an unknown option, a missing argument, no configuration, or `--editor` outside an interactive session.
+|`2` |Not found: a task, note, goal, effort, project or file.
+|`3` |Refused or failed validation: a task without a project, a change that would break the plan, an existing file, or `check` finding errors.
+|`4` |Taskwarrior failed, or is older than 3.0. Its stderr is included.
+|===
+
+On a failure, stderr says what is wrong and what to run next.
+A failed command changes nothing.
+
+== Arguments starting with a dash
+
+A positional argument starting with `-` that is not a known option is a usage error, even when it would be passed on to Taskwarrior.
+So `ztk add` cannot remove a tag with `-tag`.
+A lone `-` is allowed: it stands for stdin where a command reads text, as in `session add --done -`.

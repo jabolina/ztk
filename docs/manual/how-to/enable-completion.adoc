@@ -1,0 +1,46 @@
+[[enable-completion]]
+= How to enable shell completion
+
+This guide shows you how to complete ztk's commands, options, task IDs, projects, goals and efforts with Tab.
+ztk generates the script for your shell.
+
+== zsh
+
+. Save the script as `_ztk` in a folder on your `fpath`, for example:
++
+[source,console]
+----
+$ mkdir -p ~/.zsh/completions
+$ ztk --aesh-completion zsh > ~/.zsh/completions/_ztk
+----
+
+. If that folder is not on your `fpath` yet, add it in `~/.zshrc`, before `compinit` runs:
++
+[source,zsh]
+----
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
+----
+
+. Open a new shell.
+
+== bash
+
+Add this line to `~/.bashrc`, then open a new shell:
+
+[source,bash]
+----
+source <(ztk --aesh-completion bash)
+----
+
+== fish
+
+[source,console]
+----
+$ ztk --aesh-completion fish > ~/.config/fish/completions/ztk.fish
+----
+
+== If nothing is completed
+
+Completion reads the same configuration as every other command.
+Run `ztk config show` in the same shell: if it reports no configuration, completion offers no values either.

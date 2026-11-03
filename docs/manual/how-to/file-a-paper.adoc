@@ -1,0 +1,41 @@
+[[file-a-paper]]
+= How to file and summarize a paper
+
+This guide shows you how to file a paper's PDF in the knowledge base, write its summary, and turn its ideas into zettels.
+
+. File the PDF and create its note:
++
+[source,console]
+----
+$ ztk paper new ~/Downloads/lamport78.pdf \
+    --title "Time, Clocks, and the Ordering of Events" \
+    --venue cacm --year 1978 --authors "Leslie Lamport" \
+    --link https://example.org/lamport78
+Filed paper 'Time, Clocks, and the Ordering of Events' with its PDF at ~/notes/papers/cacm/1978/time-clocks-and-the-ordering-of-events.pdf.
+~/notes/papers/cacm/1978/time-clocks-and-the-ordering-of-events.md
+----
++
+ztk copies the PDF and leaves the original where it was.
+Only `--title` is required: without `--venue` the paper goes under `others`, and without `--year` under the current year.
+Add `--editor` to open the note right away.
+
+. Fill in the note's sections.
+Each starts with a line in italics saying what it holds; replace it with your own words.
+
+. For each idea worth keeping on its own, create a zettel:
++
+[source,console]
+----
+$ ztk new Happened-before relation
+----
++
+In the zettel, link back to the paper by its note's name: `[[time-clocks-and-the-ordering-of-events]]`.
+
+. Link the zettels from the task notes that apply them.
+
+To find the paper again later, search for it by its type:
+
+[source,console]
+----
+$ ztk search clocks --type paper
+----

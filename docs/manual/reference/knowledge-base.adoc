@@ -1,0 +1,156 @@
+[[knowledge-base]]
+= Knowledge base layout
+
+== Folders
+
+With the default configuration, a knowledge base looks like this:
+
+[source]
+----
+<data.location>/
+├── <Project>/                        task notes and project notes
+│   └── 20261103-fix-the-build.md
+├── zettel/
+│   └── 20261103-atomic-notes.md
+├── papers/<venue>/<year>/
+│   ├── <slug>.pdf
+│   └── <slug>.md
+├── goals/
+│   └── 2026/
+│       ├── 2026-G1-<slug>.md         yearly goal 2026-G1
+│       └── Q4/
+│           └── 2026-Q4-G1-<slug>.md  quarterly goal 2026-Q4-G1
+├── efforts/
+│   └── <slug>.md                     effort <slug>
+├── journal/
+│   └── 2026-11-03.md                 the sessions of one day
+└── summaries/
+    ├── 2026-W44.md                   a week
+    ├── 2026-Q4.md                    a quarter
+    └── 2026.md                       a year
+----
+
+Folder names come from <<configuration,the configuration>>.
+Every other top-level folder is a project folder, named after its Taskwarrior project.
+
+ztk reads every `.md` file under `data.location`.
+It skips hidden folders, and files named `AGENTS.md` or `CLAUDE.md`.
+
+[#note-types]
+== Note types
+
+A note's type comes from where it is, never from its name or content.
+
+[cols="2,3"]
+|===
+|Type |Where
+
+|`task` |In a project folder, with `task_uuid` in its frontmatter.
+|`project` |In a project folder, without `task_uuid`.
+|`zettel` |Under `folder.zettel`.
+|`paper` |Under `folder.papers`.
+|`journal` |Under `folder.journal`.
+|`summary` |Under `folder.summaries`.
+|`other` |At the root, and in any subfolder of a goal folder or of `folder.efforts`.
+|===
+
+A `.md` directly in `goals/<YYYY>/`, `goals/<YYYY>/Q<q>/` or `efforts/` is a goal or an effort, not a note.
+Any other folder in those places holds material for a goal or effort: drafts, PDFs, logs.
+
+== Frontmatter
+
+ztk reads YAML frontmatter.
+When it is not valid YAML, ztk reads it as `key: value` lines.
+
+[cols="1,1,3"]
+|===
+|File |Field |Value
+
+.5+|Task note
+|`title` |The task's description when created.
+|`date` |When it was created.
+|`task_uuid` |The task's UUID.
+|`project` |The task's project.
+|`issue` |The task's `issue` attribute, or empty.
+
+.3+|Zettel
+|`title` |The title.
+|`date` |When it was created.
+|`uuid` |A UUID of its own.
+
+.6+|Paper
+|`title` |The title.
+|`authors` |The authors.
+|`venue` |Where it was published.
+|`link` |Where to find it online.
+|`date_read` |The day it was filed.
+|`pdf` |The PDF's path, relative to the note.
+
+.5+|Goal
+|`title` |The title.
+|`status` |`open`, `reached`, `missed` or `dropped`.
+|`parent` |For a quarterly goal: its yearly goal, such as `2026-G1`.
+|`closed` |The day it was closed, while it is.
+|`date` |When it was created.
+
+.5+|Effort
+|`title` |The title.
+|`status` |`planned`, `active`, `done` or `dropped`.
+|`goal` |Its quarterly goal, such as `2026-Q4-G1`.
+|`closed` |The day it was closed, while it is.
+|`date` |When it was created.
+|===
+
+Change a goal's or an effort's frontmatter with `goal set` and `effort set`, not by hand.
+They rewrite only the frontmatter, and keep the body byte for byte.
+
+== Templates
+
+Notes created by ztk start from built-in templates.
+Goal, effort and paper templates have one section per topic, each opened by a line in italics saying what it holds.
+
+Yearly goal:: Summary, Why it matters, Agreement, What success looks like, Out of scope, Open questions.
+Quarterly goal:: Summary, Contribution, Done when, Out of scope, Risks and dependencies.
+Effort:: Context, Done when, Approach, Decisions, Risks and open questions, Outcome.
+Paper:: The TL;DR, The Gap, Key Definitions, The Big Idea, Systems & Implementation, Benchmarks & Results, Limitations & Blind Spots, Project Relevance.
+Task note and zettel:: A `# Notes` heading.
+
+== Goal IDs and file names
+
+[cols="1,2,2"]
+|===
+| |File |ID
+
+|Yearly goal |`goals/2026/2026-G1-<slug>.md` |`2026-G1`
+|Quarterly goal |`goals/2026/Q4/2026-Q4-G1-<slug>.md` |`2026-Q4-G1`
+|Effort |`efforts/<slug>.md` |`<slug>`
+|===
+
+A goal's ID is read from the start of its file name.
+Quarters are calendar quarters: Q1 is January to March.
+Numbers are never reused: a dropped goal keeps its number.
+
+Neither IDs nor file names change through ztk; `--title` changes only the `title` field.
+
+== Journal
+
+Each day's sessions are in `journal/<YYYY-MM-DD>.md`, in the order they were written:
+
+[source,markdown]
+----
+# 2026-11-03
+
+## [[3143468a-fbad-4142-b6d5-819ca30d823a]] · First draft
+**Done:** Drafted the highlights section.
+**Now:** Draft in the task note.
+**Next:** Ask the team for missing items.
+----
+
+The heading links the task by its full UUID.
+A session's ID is its day and its position in the file, such as `2026-11-03#1`.
+Only `ztk session add` writes the journal.
+
+== Summaries
+
+`summary --write` saves `summaries/<period>.md`: frontmatter with `title`, `period` and `date`, the facts, then a `---` line and the narrative, when given.
+Only ztk writes the summaries.

@@ -1,0 +1,17 @@
+= ztk manual
+:toc: left
+:toclevels: 3
+
+ztk is a Zettelkasten and GTD task tool for the terminal.
+Notes are Markdown files in a knowledge base, tasks live in Taskwarrior, and ztk connects the two.
+
+The manual has four parts.
+Pick the one that matches what you need right now.
+
+include::./tutorials/index.adoc[]
+
+include::./how-to/index.adoc[]
+
+include::./reference/index.adoc[]
+
+include::./explanation/index.adoc[]

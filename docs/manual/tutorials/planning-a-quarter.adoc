@@ -1,0 +1,177 @@
+[[planning-a-quarter]]
+= Planning a quarter
+
+In this tutorial we will plan some work: a goal for the year, a goal for the quarter, an effort toward it, and the tasks of that effort.
+Then we will look at the plan the way ztk shows it, and see how the quarter's summary gathers it.
+
+We continue in the knowledge base from <<first-steps,First steps>>, with `ZTKRC` still pointing at `~/ztk-tutorial/ztkrc`.
+
+NOTE: The examples use 2026 and its fourth quarter.
+Use the current year and quarter instead, for example `2027` and `2027-Q1`.
+
+== Set a yearly goal
+
+A yearly goal is an outcome for the whole year.
+We create one:
+
+[source,console]
+----
+$ ztk goal new 2026 --title "Make the website easy to maintain"
+Created goal:2026-G1.
+/home/you/ztk-tutorial/notes/goals/2026/2026-G1-make-the-website-easy-to-maintain.md
+----
+
+ztk numbered it `2026-G1`, the first goal of 2026, and created its note from a template.
+Let's open the note: each section has one line in italics saying what it should hold.
+We replace the line under `## Summary` with a sentence of our own, and leave the rest for now.
+
+== Set a quarterly goal
+
+A quarterly goal is a step toward a yearly goal, small enough to reach in three months.
+We name its yearly goal with `--parent`:
+
+[source,console]
+----
+$ ztk goal new 2026-Q4 --title "Automate the release pages" --parent 2026-G1
+Created goal:2026-Q4-G1.
+/home/you/ztk-tutorial/notes/goals/2026/Q4/2026-Q4-G1-automate-the-release-pages.md
+----
+
+== Start an effort
+
+An effort groups the tasks that move a quarterly goal forward.
+We give it a short name, its slug, and its goal:
+
+[source,console]
+----
+$ ztk effort new release-automation --title "Generate release notes from tasks" --goal 2026-Q4-G1
+Created effort:release-automation.
+/home/you/ztk-tutorial/notes/efforts/release-automation.md
+----
+
+Let's see what happens if we point an effort at the yearly goal instead:
+
+[source,console]
+----
+$ ztk effort new other --title "Other" --goal 2026-G1
+No quarterly goal 2026-G1. An effort moves one quarterly goal forward, e.g. 2026-Q4-G1; list the goals with: ztk goal list
+----
+
+ztk refused, and wrote nothing.
+
+== Give the effort tasks
+
+We add a new task straight into the effort:
+
+[source,console]
+----
+$ ztk add Script the changelog --effort release-automation project:Website
+Created task 2.
+/home/you/ztk-tutorial/notes/Website/20261103-script-the-changelog.md
+----
+
+The link checker task from the first tutorial belongs to this effort too.
+It is task 1 now, since completing the release notes freed that number.
+We assign it:
+
+[source,console]
+----
+$ ztk effort assign release-automation 1
+Task 1 ('Fix the broken link checker') joined release-automation.
+----
+
+New efforts start as `planned`.
+Work has begun, so we mark it `active`:
+
+[source,console]
+----
+$ ztk effort set release-automation --status active
+Updated effort:release-automation.
+effort:release-automation
+----
+
+== Look at the plan
+
+`ztk goal list` shows the goals of the year, quarterly goals under their yearly goal:
+
+[source,console]
+----
+$ ztk goal list
+ID            STATUS  EFFORTS  TITLE
+2026-G1       open    1        Make the website easy to maintain
+  2026-Q4-G1  open    1        Automate the release pages
+----
+
+`ztk effort info` shows one effort, its goals and its tasks:
+
+[source,console]
+----
+$ ztk effort info release-automation
+Effort release-automation ('Generate release notes from tasks'), active
+  Note: /home/you/ztk-tutorial/notes/efforts/release-automation.md
+  Goal: 2026-Q4-G1 ('Automate the release pages'), open
+  Yearly goal: 2026-G1 ('Make the website easy to maintain'), open
+Pending:
+Task 1 ('Fix the broken link checker')
+  Note: /home/you/ztk-tutorial/notes/Website/20261103-fix-the-broken-link-checker.md
+Task 2 ('Script the changelog')
+  Note: /home/you/ztk-tutorial/notes/Website/20261103-script-the-changelog.md
+Completed:
+  none
+----
+
+== Try to close the goal too early
+
+Let's say the quarterly goal is reached:
+
+[source,console]
+----
+$ ztk goal set 2026-Q4-G1 --status reached
+Not changed, as it would leave these errors; settle each first:
+  effort:release-automation: Still open, but its goal 2026-Q4-G1 is reached. Close it: ztk effort set release-automation --status <done|dropped>; move it: ztk effort set release-automation --goal <goal ID>; or reopen 2026-Q4-G1: ztk goal set 2026-Q4-G1 --status open
+----
+
+The effort under it is still active, so ztk refused, and listed what to settle first.
+A goal closes only once nothing open is left under it.
+We leave the goal open: the work is not finished.
+
+== Read the quarter's summary
+
+`ztk summary` gathers the facts of a period.
+For our quarter:
+
+[source,console]
+----
+$ ztk summary 2026-Q4
+---
+title: 2026-Q4
+period: 2026-Q4
+date: 2026-11-03
+---
+
+# 2026-Q4, 2026-10-01 to 2026-12-31
+
+## 2026-Q4-G1 · Automate the release pages (open)
+
+### release-automation · Generate release notes from tasks (active)
+
+- [[20261103-fix-the-broken-link-checker|Fix the broken link checker]] · Website · pending
+- [[20261103-script-the-changelog|Script the changelog]] · Website · pending
+
+## General work
+
+### Website
+
+- [[20261103-write-the-release-notes|Write the release notes]] · completed
+----
+
+The effort's tasks are listed under its goal.
+The release notes task belongs to no effort, so it shows up as general work.
+
+== What we did
+
+We set a yearly goal and a quarterly goal under it, started an effort toward the quarterly goal, gave the effort two tasks, and read the plan back with `goal list`, `effort info` and `summary`.
+We also saw ztk refuse two changes that would have broken the plan.
+
+To learn why the plan is shaped this way, read <<planning,About goals and efforts>>.
+To close a quarter for real, follow <<close-a-quarter,How to close a quarter>>.

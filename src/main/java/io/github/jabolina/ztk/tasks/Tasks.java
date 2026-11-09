@@ -131,6 +131,40 @@ public final class Tasks {
    }
 
    /**
+    * Plans the week: puts tasks in it and takes tasks out of it, without starting or stopping any.
+    *
+    * <p>
+    * Every task is checked before any is changed, so a rejected call leaves the week as it was. A task under review
+    * keeps its review tag when put in the week.
+    * </p>
+    *
+    * @param added   the IDs or UUIDs of the tasks to put in the week.
+    * @param dropped the IDs or UUIDs of the tasks to take out of the week.
+    * @throws ZtkException with {@link ZtkException.Kind#NOT_FOUND} when no task has one of the IDs or UUIDs.
+    * @throws ZtkException with {@link ZtkException.Kind#VALIDATION} when a task to put in the week is completed or
+    *                      deleted, or when a task is both put in and taken out.
+    */
+   public void changeWeek(List<String> added, List<String> dropped) {
+      List<Task> adding = added.stream().map(store::get).toList();
+      List<Task> dropping = dropped.stream().map(store::get).toList();
+      for (Task task : adding) {
+         if (!task.open()) {
+            throw ZtkException.validation(task.label() + " is " + task.status().label()
+                  + ", only open tasks can be put in the week."
+                  + System.lineSeparator()
+                  + "Run 'ztk week --add' again without it.");
+         }
+         if (dropping.stream().anyMatch(other -> other.uuid().equals(task.uuid()))) {
+            throw ZtkException.validation(task.label() + " is given to both --add and --drop."
+                  + System.lineSeparator()
+                  + "Run 'ztk week' again with the task in only one of them.");
+         }
+      }
+      adding.forEach(task -> store.modify(task, List.of("+week")));
+      dropping.forEach(task -> store.modify(task, List.of("-week")));
+   }
+
+   /**
     * Lists the pending tasks that are not waiting, most urgent first.
     *
     * @param project the project to list, including its subprojects, or {@code null} for every project.

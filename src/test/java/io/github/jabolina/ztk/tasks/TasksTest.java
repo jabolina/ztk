@@ -291,6 +291,60 @@ class TasksTest {
    }
 
    @Test
+   void changeWeekAddsAndDropsTasksWithoutStartingThem() {
+      TaskNote planned = tasks.add(List.of("Fix flaky test", "project:Alpha", "+review"));
+      TaskNote finished = tasks.add(List.of("Write spec", "project:Alpha", "+week"));
+
+      tasks.changeWeek(List.of(planned.task().uuid()), List.of(String.valueOf(finished.task().id())));
+
+      Task added = store.get(planned.task().uuid());
+      // Planning is not starting, and a task under review stays under review.
+      assertThat(added.tags()).containsExactlyInAnyOrder("week", "review");
+      assertThat(added.active()).isFalse();
+      assertThat(store.get(finished.task().uuid()).tags()).isEmpty();
+   }
+
+   @Test
+   void changeWeekWithAClosedTaskIsRejectedBeforeAnythingIsWritten() {
+      TaskNote open = tasks.add(List.of("Fix flaky test", "project:Alpha"));
+      TaskNote closed = tasks.add(List.of("Write spec", "project:Alpha"));
+      tasks.done(closed.task().uuid());
+
+      assertThatThrownBy(() -> tasks.changeWeek(List.of(open.task().uuid(), closed.task().uuid()), List.of()))
+            .isInstanceOfSatisfying(ZtkException.class,
+                  e -> assertThat(e.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode()))
+            .hasMessageContaining(closed.task().uuid().substring(0, 8))
+            .hasMessageContaining("Write spec")
+            .hasMessageContaining("completed")
+            .hasMessageContaining("ztk week");
+      assertThat(store.get(open.task().uuid()).tags()).isEmpty();
+   }
+
+   @Test
+   void changeWeekWithAnUnknownTaskIsRejectedBeforeAnythingIsWritten() {
+      TaskNote open = tasks.add(List.of("Fix flaky test", "project:Alpha"));
+
+      assertThatThrownBy(() -> tasks.changeWeek(List.of(open.task().uuid(), "99"), List.of()))
+            .isInstanceOfSatisfying(ZtkException.class,
+                  e -> assertThat(e.exitCode()).isEqualTo(ZtkException.Kind.NOT_FOUND.exitCode()));
+      assertThat(store.get(open.task().uuid()).tags()).isEmpty();
+   }
+
+   @Test
+   void changeWeekAddingAndDroppingTheSameTaskIsRejected() {
+      TaskNote open = tasks.add(List.of("Fix flaky test", "project:Alpha"));
+      String uuid = open.task().uuid();
+
+      assertThatThrownBy(() -> tasks.changeWeek(List.of(uuid), List.of(String.valueOf(open.task().id()))))
+            .isInstanceOfSatisfying(ZtkException.class,
+                  e -> assertThat(e.exitCode()).isEqualTo(ZtkException.Kind.VALIDATION.exitCode()))
+            .hasMessageContaining("Fix flaky test")
+            .hasMessageContaining("--add")
+            .hasMessageContaining("--drop");
+      assertThat(store.get(uuid).tags()).isEmpty();
+   }
+
+   @Test
    void addWithoutProjectIsRejectedBeforeAnythingIsWritten() {
       assertThatThrownBy(() -> tasks.add(List.of("orphan", "+week")))
             .isInstanceOfSatisfying(ZtkException.class,

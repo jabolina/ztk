@@ -141,7 +141,38 @@ class ListingCommandsTest {
       Result result = CliHarness.run(taskwarrior.environment(), true, "week");
 
       assertThat(result.exitCode()).isZero();
-      // Points to the command that brings a task into the week.
-      assertThat(result.out()).contains("No tasks", "ztk start");
+      // Points to the commands that bring a task into the week.
+      assertThat(result.out()).contains("No tasks", "ztk start", "ztk week --add");
+   }
+
+   @Test
+   void weekAddPutsTasksInTheWeekAndShowsIt() {
+      taskwarrior.task("add", "Review design", "project:Beta");
+
+      Result result = CliHarness.run(taskwarrior.environment(), true, "week", "--add", "2,3");
+
+      assertThat(result.exitCode()).isZero();
+      assertThat(result.out()).contains("Fix flaky test", "Write spec", "Review design");
+   }
+
+   @Test
+   void weekDropTakesATaskOutOfTheWeekAndPrintsTheWeekAsJsonWhenPiped() {
+      taskwarrior.task("add", "Review design", "project:Beta", "+week");
+
+      Result result = CliHarness.run(taskwarrior.environment(), false, "week", "--drop", "1");
+
+      assertThat(result.exitCode()).isZero();
+      JsonNode json = JSON.readTree(result.out());
+      assertThat(json.path("tasks")).hasSize(1);
+      assertThat(json.path("tasks").get(0).path("description").asString()).isEqualTo("Review design");
+   }
+
+   @Test
+   void weekAddWithAnUnknownTaskFailsOnStderrWithoutOutput() {
+      Result result = CliHarness.run(taskwarrior.environment(), false, "week", "--add", "2,99");
+
+      assertThat(result.exitCode()).isNotZero();
+      assertThat(result.out()).isEmpty();
+      assertThat(result.err()).contains("99");
    }
 }

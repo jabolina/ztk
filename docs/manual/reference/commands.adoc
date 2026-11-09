@@ -106,11 +106,14 @@ A project includes its subprojects.
 
 [source]
 ----
-ztk week [<project>]
+ztk week [--add <task>,...] [--drop <task>,...] [<project>]
 ----
 
 Lists the pending tasks tagged `+week`, tasks for review included.
 A project includes its subprojects.
+
+* `--add` tags the tasks `+week` and `--drop` removes the tag, before listing. Neither starts nor stops a task, and a task for review stays for review.
+* Every task is checked first, so an unknown task, a completed or deleted one given to `--add`, or a task given to both refuses the whole change.
 
 == Notes
 

@@ -14,6 +14,7 @@ ztk gathers a period's facts. You write the narrative from those facts only. ztk
 3. Write the narrative in the format below.
    - The detail comes from each task's `sessions`: Done for completed tasks, Now and Next for tasks in progress.
    - For a task without sessions, write its description alone.
+   - A task's `issue`, when not null, follows its title in parentheses.
 4. Show the narrative to the user and revise it until they approve.
 
 ```markdown
@@ -22,11 +23,11 @@ ztk gathers a period's facts. You write the narrative from those facts only. ztk
 ## Infinispan
 
 **Completed**
-- Conflict resolution on coordinator failover — task fully closed (merged upstream)
+- Conflict resolution on coordinator failover (GH-13353) — task fully closed (merged upstream)
 - awaitLeaveTransfer configuration — fixed the attribute missing from `attributeDefinitionSet()`, added it to the 16.3 XSD schema; 3 behavioral tests.
 
 **Under Review**
-- Per-node hot key tracker — PR submitted
+- Per-node hot key tracker (GH-14739) — PR submitted
 
 **In Progress**
 - Chunked snapshot transfer — leader side done; follower install next.
@@ -36,7 +37,7 @@ Formatting rules:
 
 - One `##` per project. Use **Completed**, **Under Review** and **In Progress** only when they have content.
 - Use bullets only, never numbers.
-- Each bullet is the task title, a dash, then the technical detail: what was built, design decisions, bugs found, test counts, measurements. Never repeat only the title.
+- Each bullet is the task title, its issue in parentheses when it has one, a dash, then the technical detail: what was built, design decisions, bugs found, test counts, measurements. Never repeat only the title.
 - Put no task IDs in titles, and no emojis.
 
 ## Quarter or year retrospective

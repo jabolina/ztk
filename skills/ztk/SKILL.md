@@ -60,3 +60,9 @@ Goal and effort writes (`ztk goal new`, `ztk goal set`, `ztk effort new`, `ztk e
 2. Read the PDF and write the summary into the note's sections.
 3. Pull out each idea worth keeping as a zettel with `ztk new`, linking back to the paper's note.
 4. Link those zettels from the task notes that apply them.
+
+## Ask about a paper
+
+1. Get the papers folder from `folder.papers` in `ztk config show`. Each paper is filed at `<venue>/<year>/<slug>.md`, next to its PDF.
+2. Find the note by grepping its frontmatter in that folder, e.g. `^(title|authors):.*raft`, ignoring case. For the papers read lately, sort the notes by `date_read`. When only the topic is known, use `ztk search <words> --type paper`.
+3. Read the note. Open the PDF next to it (the note's `pdf` field) only when the note does not answer the question.

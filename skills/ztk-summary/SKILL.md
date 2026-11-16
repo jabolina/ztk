@@ -10,7 +10,7 @@ ztk gathers a period's facts. You write the narrative from those facts only. ztk
 ## Weekly summary
 
 1. Run `ztk summary --json` for the previous week, or `ztk summary <YYYY-Www> --json` for another one.
-2. Read the previous week's `summaries/<YYYY-Www>.md`. A task it listed as under review that is now completed is "task fully closed".
+2. A completed task tagged `review` went through review and was merged: write it as "task fully closed (merged upstream)". Its last session often ends with the PR waiting for review; that was true when written, and completing it closed the review. Don't flag it.
 3. Write the narrative in the format below.
    - The detail comes from each task's `sessions`: Done for completed tasks, Now and Next for tasks in progress.
    - For a task without sessions, write its description alone.
